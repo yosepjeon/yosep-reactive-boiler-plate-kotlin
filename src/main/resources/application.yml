@@ -1,0 +1,49 @@
+profile: local
+
+application.name: yosep-reactive-boiler-plate-kotlin-server
+
+server:
+  shutdown: graceful
+  port: 20000
+  logging:
+    access: true
+
+spring:
+  redis:
+    master: redis://localhost:6379
+    slave: redis://localhost:6379
+  kafka:
+    bootstrap-servers: "127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094"
+    producer:
+      client-id: "YOSEP-REACTIVE-BOILER-PLATE-KOTLIN-SERVER"
+      retries: 3
+      batch-size: 100
+      compression-type: gzip
+      buffer-memory: 33554432
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: 1
+      properties:
+        linger.ms: 50
+    consumer:
+      group-id: "YOSEP-REACTIVE-BOILER-PLATE-KOTLIN-SERVER"
+      enable-auto-commit: false
+      max-poll-records: 500
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      auto-offset-reset: latest
+      properties:
+        spring.json.trusted.packages: '*'
+    listener:
+      concurrency: 1
+      ack-mode: manual_immediate
+      poll-timeout: 3000
+      type: single
+      # Custom setting - auto startup listener
+      auto-startup: false
+    # Custom setting - retries
+    retry:
+      max-attempts: 10
+      initial-interval: 1000
+      multiplier: 2
+      max-interval: 10000

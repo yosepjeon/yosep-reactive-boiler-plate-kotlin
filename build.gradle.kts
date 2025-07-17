@@ -1,10 +1,11 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-	id("org.springframework.boot") version "3.0.6"
-	id("io.spring.dependency-management") version "1.1.0"
-	kotlin("jvm") version "1.7.22"
-	kotlin("plugin.spring") version "1.7.22"
+	id("org.springframework.boot") version "3.3.3"
+	id("io.spring.dependency-management") version "1.1.5"
+	kotlin("jvm") version "1.9.23"
+	kotlin("plugin.spring") version "1.9.23"
+	kotlin("plugin.allopen") version "1.9.23"
 }
 
 group = "com.yosep"
@@ -21,7 +22,7 @@ repositories {
 	mavenCentral()
 }
 
-extra["springCloudVersion"] = "2022.0.2"
+extra["springCloudVersion"] = "2023.0.1"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -29,6 +30,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
 	implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+	implementation("org.redisson:redisson:3.50.0")
 	implementation("org.springframework.boot:spring-boot-starter-hateoas")
 	implementation("org.springframework.boot:spring-boot-starter-rsocket")
 	implementation("org.springframework.boot:spring-boot-starter-security")
@@ -48,9 +50,12 @@ dependencies {
 	runtimeOnly("com.mysql:mysql-connector-j")
 	runtimeOnly("io.r2dbc:r2dbc-h2")
 	annotationProcessor("org.projectlombok:lombok")
+	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("io.projectreactor:reactor-test")
 	testImplementation("org.springframework.security:spring-security-test")
+	testImplementation("com.github.codemonstur:embedded-redis:1.4.3")
+	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
 }
 
 dependencyManagement {
