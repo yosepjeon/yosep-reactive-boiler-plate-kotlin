@@ -47,3 +47,10 @@ spring:
       initial-interval: 1000
       multiplier: 2
       max-interval: 10000
+
+
+redis:
+  topic:
+    test:
+      pub-sub:
+        producer: test-a-to-a-pub-sub
