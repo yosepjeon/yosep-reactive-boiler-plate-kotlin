@@ -1,5 +1,6 @@
 package com.yosep.server.infrastructure.component
 
+import com.yosep.server.infrastructure.redis.component.RedisCommandHelper
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals

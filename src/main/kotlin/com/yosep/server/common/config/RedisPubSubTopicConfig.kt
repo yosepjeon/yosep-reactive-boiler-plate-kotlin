@@ -5,4 +5,7 @@ import org.springframework.context.annotation.Configuration
 
 @Configuration
 @RequiredArgsConstructor
-class RedisPubSubTopicConfig
+class RedisPubSubTopicConfig (
+//    @Value("\${redis.topic.kcb.credit-increase-result.producer}")
+//    val redisTopicTestAtoAPubsub: String
+)

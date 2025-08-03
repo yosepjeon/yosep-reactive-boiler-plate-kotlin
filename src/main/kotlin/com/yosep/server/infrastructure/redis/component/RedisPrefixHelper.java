@@ -1,4 +1,4 @@
-package com.yosep.server.infrastructure.component;
+package com.yosep.server.infrastructure.redis.component;
 
 public class RedisPrefixHelper {
 
