@@ -6,9 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
-import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.yosep.server.common.logging.StringPropertyMaskerSerializer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -33,7 +31,8 @@ class ObjectMapperConfig {
     fun objectMapperForMasking(): ObjectMapper {
         val objectMapper = JsonMapper.builder()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            .addModules(JavaTimeModule(), getStringPropertyMakingModule())
+            .addModules(JavaTimeModule())
+//            .addModules(JavaTimeModule(), getStringPropertyMakingModule())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .build()
 
@@ -41,7 +40,7 @@ class ObjectMapperConfig {
         return objectMapper
     }
 
-    private fun getStringPropertyMakingModule(): SimpleModule {
-        return SimpleModule().addSerializer(String::class.java, StringPropertyMaskerSerializer())
-    }
+//    private fun getStringPropertyMakingModule(): SimpleModule {
+//        return SimpleModule().addSerializer(String::class.java, StringPropertyMaskerSerializer())
+//    }
 }
