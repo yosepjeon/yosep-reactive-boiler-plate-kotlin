@@ -10,8 +10,8 @@ server:
 
 spring:
   redis:
-    master: redis://localhost:6379
-    slave: redis://localhost:6379
+    master: redis://localhost:56379
+    slave: redis://localhost:56379
   kafka:
     bootstrap-servers: "127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094"
     producer:
@@ -47,10 +47,3 @@ spring:
       initial-interval: 1000
       multiplier: 2
       max-interval: 10000
-
-
-redis:
-  topic:
-    test:
-      pub-sub:
-        producer: test-a-to-a-pub-sub

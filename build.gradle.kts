@@ -30,10 +30,11 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
 	implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
-	implementation("org.redisson:redisson:3.50.0")
-	implementation("org.springframework.boot:spring-boot-starter-hateoas")
 	implementation("org.springframework.boot:spring-boot-starter-rsocket")
-	implementation("org.springframework.boot:spring-boot-starter-security")
+	implementation("org.redisson:redisson:3.50.0")
+	implementation("org.springframework.security:spring-security-messaging")
+//	implementation("org.springframework.security:spring-security-rsocket")
+	implementation("org.springframework.boot:spring-boot-starter-hateoas")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("io.micrometer:micrometer-tracing-bridge-brave")
@@ -42,20 +43,28 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
-	implementation("org.springframework.security:spring-security-messaging")
-	implementation("org.springframework.security:spring-security-rsocket")
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
-	runtimeOnly("com.h2database:h2")
-	runtimeOnly("com.mysql:mysql-connector-j")
-	runtimeOnly("io.r2dbc:r2dbc-h2")
+	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 	annotationProcessor("org.projectlombok:lombok")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+	runtimeOnly("com.mysql:mysql-connector-j")
+	runtimeOnly("io.asyncer:r2dbc-mysql")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	testImplementation("org.springframework.boot:spring-boot-testcontainers")
 	testImplementation("io.projectreactor:reactor-test")
-	testImplementation("org.springframework.security:spring-security-test")
-	testImplementation("com.github.codemonstur:embedded-redis:1.4.3")
+	testImplementation("io.rest-assured:spring-web-test-client")
+	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
+	testImplementation("org.springframework.cloud:spring-cloud-starter-contract-stub-runner")
+	testImplementation("org.springframework.cloud:spring-cloud-starter-contract-verifier")
+	testImplementation("org.testcontainers:elasticsearch")
+	testImplementation("org.testcontainers:junit-jupiter")
+	testImplementation("org.testcontainers:mongodb")
+	testImplementation("org.testcontainers:mysql")
+	testImplementation("org.testcontainers:r2dbc")
+	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 dependencyManagement {
@@ -73,4 +82,8 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+tasks.test {
+	jvmArgs = listOf("-Dtestcontainers.ryuk.disabled=true")
 }
