@@ -34,8 +34,8 @@ abstract class AbstractIntegrationContainerBase {
         private val mysqlContainer = MySQLContainer(DockerImageName.parse("mysql:8.0.33"))
             .apply {
                 withDatabaseName("testdb")
-                withUsername("testuser")
-                withPassword("testpass")
+                withUsername("root")
+                withPassword("rootpass")
                 withExposedPorts(3306)
                 withCreateContainerCmdModifier { cmd ->
                     val ports = Ports()

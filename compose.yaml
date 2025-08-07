@@ -6,8 +6,8 @@ services:
       - 'discovery.type=single-node'
       - 'xpack.security.enabled=false'
     ports:
-      - '9200'
-      - '9300'
+      - '9200:9200'
+      - '9300:9300'
   mongodb:
     image: 'mongo:latest'
     environment:
@@ -15,7 +15,7 @@ services:
       - 'MONGO_INITDB_ROOT_PASSWORD=secret'
       - 'MONGO_INITDB_ROOT_USERNAME=root'
     ports:
-      - '27017'
+      - '27017:27017'
   mysql:
     image: 'mysql:latest'
     environment:
@@ -24,12 +24,12 @@ services:
       - 'MYSQL_ROOT_PASSWORD=verysecret'
       - 'MYSQL_USER=myuser'
     ports:
-      - '3306'
+      - '3306:3306'
   redis:
     image: 'redis:latest'
     ports:
-      - '6379'
+      - '6379:6379'
   zipkin:
     image: 'openzipkin/zipkin:latest'
     ports:
-      - '9411'
+      - '9411:9411'

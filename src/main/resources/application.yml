@@ -12,6 +12,15 @@ spring:
   redis:
     master: redis://localhost:6379
     slave: redis://localhost:6379
+  r2dbc:
+    master:
+      url: r2dbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=utf8&autoreconnect=true
+      username: myuser
+      password: secret
+    slave:
+      url: r2dbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=utf8&autoreconnect=true
+      username: myuser
+      password: secret
   kafka:
     bootstrap-servers: "127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094"
     producer:
