@@ -1,4 +1,4 @@
-package com.yosep.server.waitqueue.infrastructure.kafka.type
+package com.yosep.server.infrastructure.kafka.type
 
 const val EVENT = "event"
 const val CREDIT = "credit"

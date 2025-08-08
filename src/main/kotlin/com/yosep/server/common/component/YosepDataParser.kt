@@ -2,7 +2,7 @@ package com.yosep.server.common.component
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.yosep.server.common.exception.YosepErrorException
-import com.yosep.server.infrastructure.kafka.message.common.message.CommonMessage
+import com.yosep.server.infrastructure.kafka.message.common.CommonMessage
 import org.springframework.core.io.ClassPathResource
 import org.springframework.stereotype.Component
 import org.springframework.util.ObjectUtils
@@ -38,7 +38,7 @@ class YosepDataParser (
         }
     }
 
-    fun <R> parse(data: Any, clazz: Class<R>): R {
+    fun <R> parse(data: Any?, clazz: Class<R>): R {
         return objectMapper.convertValue(data, clazz)
     }
 

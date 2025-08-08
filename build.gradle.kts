@@ -25,13 +25,27 @@ repositories {
 extra["springCloudVersion"] = "2023.0.1"
 
 dependencies {
-	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	// elastic search
 	implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
+
+	// mongo
 	implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
+
+	// r2dbc
 	implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
+
+	// redis
 	implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
-	implementation("org.springframework.boot:spring-boot-starter-rsocket")
 	implementation("org.redisson:redisson:3.50.0")
+
+	// kafka
+	implementation("org.springframework.kafka:spring-kafka")
+	implementation("io.projectreactor.kafka:reactor-kafka")
+	implementation("org.apache.kafka:kafka-clients")
+
+
+	implementation("org.springframework.boot:spring-boot-starter-rsocket")
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.security:spring-security-messaging")
 //	implementation("org.springframework.security:spring-security-rsocket")
 	implementation("org.springframework.boot:spring-boot-starter-hateoas")
@@ -43,6 +57,7 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
+
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	developmentOnly("org.springframework.boot:spring-boot-docker-compose")

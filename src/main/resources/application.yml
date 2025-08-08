@@ -56,3 +56,13 @@ spring:
       initial-interval: 1000
       multiplier: 2
       max-interval: 10000
+
+kafka:
+  topic:
+    test:
+      test-1: yosep-reactive-boiler-plate-kotlin-test-1
+
+auto:
+  create:
+    topics:
+      ena: true
