@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
@@ -14,6 +15,7 @@ import java.time.LocalDateTime
 
 @SpringBootTest
 @ActiveProfiles("test")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MydataOrgInfoWriteRepositoryTest(
     @Autowired private val mydataOrgInfoWriteRepository: MydataOrgInfoWriteRepository
 ) : AbstractIntegrationContainerBase() {
@@ -21,8 +23,9 @@ class MydataOrgInfoWriteRepositoryTest(
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `save and findById test`() = runTest {
+        val uniqueOrgCode = "T${System.currentTimeMillis().toString().takeLast(9)}"
         val entity = MydataOrgInfoEntity(
-            "ORG001",
+            uniqueOrgCode,
             "01",
             "Test Bank",
             "123-45-67890",
@@ -42,11 +45,11 @@ class MydataOrgInfoWriteRepositoryTest(
 
         val savedEntity = mydataOrgInfoWriteRepository.save(entity)
         assertNotNull(savedEntity)
-        assertEquals("ORG001", savedEntity.orgCode)
+        assertEquals(uniqueOrgCode, savedEntity.orgCode)
 
-        val foundEntity = mydataOrgInfoWriteRepository.findById("ORG001")
+        val foundEntity = mydataOrgInfoWriteRepository.findById(uniqueOrgCode)
         assertNotNull(foundEntity)
-        assertEquals("ORG001", foundEntity?.orgCode)
+        assertEquals(uniqueOrgCode, foundEntity?.orgCode)
         assertEquals("01", foundEntity?.orgType)
         assertEquals("Test Bank", foundEntity?.orgName)
         assertEquals("123-45-67890", foundEntity?.orgRegno)
@@ -56,8 +59,11 @@ class MydataOrgInfoWriteRepositoryTest(
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `findAll test`() = runTest {
+        val uniqueOrgCode1 = "T${System.currentTimeMillis().toString().takeLast(8)}1"
+        val uniqueOrgCode2 = "T${System.currentTimeMillis().toString().takeLast(8)}2"
+        
         val entity1 = MydataOrgInfoEntity(
-            "ORG002",
+            uniqueOrgCode1,
             "01",
             "Test Card Company",
             "234-56-78901",
@@ -76,7 +82,7 @@ class MydataOrgInfoWriteRepositoryTest(
         )
 
         val entity2 = MydataOrgInfoEntity(
-            "ORG003",
+            uniqueOrgCode2,
             "01",
             "Test Insurance",
             "345-67-89012",
@@ -101,8 +107,8 @@ class MydataOrgInfoWriteRepositoryTest(
         assertTrue(allEntities.size >= 2)
 
         val savedOrgCodes = allEntities.map { it.orgCode }
-        assertTrue(savedOrgCodes.contains("ORG002"))
-        assertTrue(savedOrgCodes.contains("ORG003"))
+        assertTrue(savedOrgCodes.contains(uniqueOrgCode1))
+        assertTrue(savedOrgCodes.contains(uniqueOrgCode2))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

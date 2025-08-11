@@ -1,38 +1,45 @@
+version: '3.8'
+
 services:
   elasticsearch:
     image: 'docker.elastic.co/elasticsearch/elasticsearch:7.17.10'
     environment:
-      - 'ELASTIC_PASSWORD=secret'
-      - 'discovery.type=single-node'
-      - 'xpack.security.enabled=false'
+      - ELASTIC_PASSWORD=secret
+      - discovery.type=single-node
+      - xpack.security.enabled=false
     ports:
       - '9200:9200'
       - '9300:9300'
+
   mongodb:
     image: 'mongo:latest'
     environment:
-      - 'MONGO_INITDB_DATABASE=mydatabase'
-      - 'MONGO_INITDB_ROOT_PASSWORD=secret'
-      - 'MONGO_INITDB_ROOT_USERNAME=root'
+      - MONGO_INITDB_DATABASE=mydatabase
+      - MONGO_INITDB_ROOT_PASSWORD=secret
+      - MONGO_INITDB_ROOT_USERNAME=root
     ports:
       - '27017:27017'
+
   mysql:
     image: 'mysql:latest'
     environment:
-      - 'MYSQL_DATABASE=mydatabase'
-      - 'MYSQL_PASSWORD=secret'
-      - 'MYSQL_ROOT_PASSWORD=verysecret'
-      - 'MYSQL_USER=myuser'
+      - MYSQL_DATABASE=mydatabase
+      - MYSQL_PASSWORD=secret
+      - MYSQL_ROOT_PASSWORD=verysecret
+      - MYSQL_USER=myuser
     ports:
       - '3306:3306'
+
   redis:
     image: 'redis:latest'
     ports:
       - '6379:6379'
+
   zipkin:
     image: 'openzipkin/zipkin:latest'
     ports:
       - '9411:9411'
+
   zookeeper:
     image: confluentinc/cp-zookeeper:5.5.1
     ports:
@@ -40,6 +47,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 32181
       ZOOKEEPER_TICK_TIME: 2000
+
   kafka-1:
     image: confluentinc/cp-kafka:5.5.1
     ports:
@@ -55,6 +63,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-1:29092,EXTERNAL://localhost:9092
       KAFKA_DEFAULT_REPLICATION_FACTOR: 3
       KAFKA_NUM_PARTITIONS: 3
+
   kafka-2:
     image: confluentinc/cp-kafka:5.5.1
     ports:
@@ -70,6 +79,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-2:29093,EXTERNAL://localhost:9093
       KAFKA_DEFAULT_REPLICATION_FACTOR: 3
       KAFKA_NUM_PARTITIONS: 3
+
   kafka-3:
     image: confluentinc/cp-kafka:5.5.1
     ports:
@@ -85,6 +95,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-3:29094,EXTERNAL://localhost:9094
       KAFKA_DEFAULT_REPLICATION_FACTOR: 3
       KAFKA_NUM_PARTITIONS: 3
+
   kafka-ui:
     image: provectuslabs/kafka-ui
     ports:
@@ -93,4 +104,4 @@ services:
     environment:
       - KAFKA_CLUSTERS_0_NAME=local
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka-1:29092,kafka-2:29093,kafka-3:29094
-      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:22181
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:32181

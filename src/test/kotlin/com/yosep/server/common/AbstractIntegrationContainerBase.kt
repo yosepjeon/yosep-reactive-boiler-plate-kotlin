@@ -1,126 +1,243 @@
 package com.yosep.server.common
 
-import com.github.dockerjava.api.model.ExposedPort
-import com.github.dockerjava.api.model.HostConfig
-import com.github.dockerjava.api.model.Ports
-import com.github.dockerjava.api.model.Ports.Binding
+import com.yosep.server.infrastructure.db.common.write.repository.CircuitBreakerConfigWriteRepository
+import com.yosep.server.infrastructure.db.common.write.repository.MydataOrgInfoWriteRepository
+import com.yosep.server.infrastructure.db.common.write.repository.OrgRateLimitConfigWriteRepository
+import com.yosep.server.infrastructure.db.common.write.repository.WebClientConfigRepository
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.reactor.awaitSingleOrNull
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
+import org.redisson.api.RedissonReactiveClient
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.GenericContainer
+import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.containers.MongoDBContainer
 import org.testcontainers.containers.MySQLContainer
 import org.testcontainers.elasticsearch.ElasticsearchContainer
+import org.testcontainers.lifecycle.Startables
 import org.testcontainers.utility.DockerImageName
 import org.testcontainers.containers.wait.strategy.Wait
+import java.time.Duration
 
 abstract class AbstractIntegrationContainerBase {
 
+    @Autowired(required = false)
+    private var databaseClient: DatabaseClient? = null
+
+    @Autowired(required = false)
+    private var redissonReactiveClient: RedissonReactiveClient? = null
+
+    @Autowired(required = false)
+    private var circuitBreakerConfigWriteRepository: CircuitBreakerConfigWriteRepository? = null
+
+    @Autowired(required = false)
+    private var orgRateLimitConfigWriteRepository: OrgRateLimitConfigWriteRepository? = null
+
+    @Autowired(required = false)
+    private var webClientConfigRepository: WebClientConfigRepository? = null
+
+    @Autowired(required = false)
+    private var mydataOrgInfoWriteRepository: MydataOrgInfoWriteRepository? = null
+
+    @AfterEach
+    open fun cleanupTestData() {
+        runBlocking {
+            try {
+                // Clean up Redis test data
+                cleanupRedisData()
+
+                // Clean up database test data using repositories
+                cleanupDatabaseTables()
+
+                println("[DEBUG_LOG] Test data cleanup completed successfully")
+            } catch (e: Exception) {
+                println("[DEBUG_LOG] Error during test data cleanup: ${e.message}")
+                // Don't rethrow to avoid breaking test execution
+            }
+        }
+    }
+
+    private suspend fun cleanupDatabaseTables() {
+        try {
+            // Delete all test data from tables using repositories
+            circuitBreakerConfigWriteRepository?.deleteAll()
+            orgRateLimitConfigWriteRepository?.deleteAll()
+            webClientConfigRepository?.deleteAll()
+
+            // Only delete test data from mydata_org_info (preserve reference data)
+            // Get all entities and delete only test ones
+            mydataOrgInfoWriteRepository?.let { repo ->
+                val allOrgInfos = repo.findAll().toList()
+                val testOrgInfos = allOrgInfos.filter {
+                    it.orgCode.startsWith("ORG_") || it.orgCode == "ORG_DELETE"
+                }
+                testOrgInfos.forEach { repo.delete(it) }
+            }
+
+            println("[DEBUG_LOG] Database tables cleaned up using repositories")
+        } catch (e: Exception) {
+            println("[DEBUG_LOG] Error cleaning up database tables: ${e.message}")
+            // Don't rethrow to avoid breaking test execution
+        }
+    }
+
+    private suspend fun cleanupRedisData() {
+        try {
+            // Delete all Redis keys
+            redissonReactiveClient?.let { client ->
+                val keys = client.keys
+                keys.flushall().awaitSingleOrNull()
+                println("[DEBUG_LOG] Redis data cleaned up")
+            }
+        } catch (e: Exception) {
+            println("[DEBUG_LOG] Error cleaning up Redis data: ${e.message}")
+            // Don't rethrow to avoid breaking test execution
+        }
+    }
+
+
     companion object {
+        private val redis = GenericContainer(DockerImageName.parse("redis:latest")).apply {
+            withExposedPorts(6379)
+            waitingFor(Wait.forLogMessage(".*Ready to accept connections.*", 1).withStartupTimeout(Duration.ofSeconds(60)))
+            withReuse(true) // Enable reuse for better performance across test classes
+        }
 
-        private val redisContainer = GenericContainer(DockerImageName.parse("redis:latest"))
-            .apply {
-                withExposedPorts(6379)
-                withCreateContainerCmdModifier { cmd ->
-                    val ports = Ports()
-                    ports.bind(ExposedPort.tcp(6379), Binding.bindPort(56379))
-                    val hostConfig = HostConfig.newHostConfig().withPortBindings(ports)
-                    cmd.withHostConfig(hostConfig)
+        private val mysql = MySQLContainer(DockerImageName.parse("mysql:8.0.33")).apply {
+            withDatabaseName("testdb")
+            withUsername("myuser")
+            withPassword("secret")
+            waitingFor(Wait.forLogMessage(".*ready for connections.*", 1).withStartupTimeout(Duration.ofSeconds(90)))
+            withReuse(true) // Enable reuse for better performance across test classes
+        }
+
+        private val mongo = MongoDBContainer(DockerImageName.parse("mongo:latest")).apply {
+            waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(60)))
+            withReuse(true) // Enable reuse for better performance across test classes
+        }
+
+        private val es = ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:7.17.10").apply {
+            withEnv("xpack.security.enabled", "false")
+            withEnv("discovery.type", "single-node")
+            waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
+            withReuse(true) // Enable reuse for better performance across test classes
+        }
+
+        private val kafka = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0")).apply {
+            // Testcontainers용 단일 브로커 (bootstrapServers 제공)
+            withReuse(true) // Enable reuse for better performance across test classes
+            waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
+        }
+
+        @Volatile private var started = false
+
+        private fun ensureStarted() {
+            if (!started) synchronized(this) {
+                if (!started) {
+                    // 필수 컨테이너 먼저
+                    Startables.deepStart(listOf(redis, mysql)).join()
+                    // 선택 컨테이너 (있으면 사용)
+                    try { mongo.start() } catch (_: Exception) {}
+                    try { es.start() } catch (_: Exception) {}
+                    try { kafka.start() } catch (_: Exception) {}
+                    started = true
                 }
-                waitingFor(Wait.forListeningPort())
-                withReuse(false)
             }
+        }
 
-        private val mysqlContainer = MySQLContainer(DockerImageName.parse("mysql:8.0.33"))
-            .apply {
-                withDatabaseName("testdb")
-                withUsername("root")
-                withPassword("rootpass")
-                withExposedPorts(3306)
-                withCreateContainerCmdModifier { cmd ->
-                    val ports = Ports()
-                    ports.bind(ExposedPort.tcp(3306), Binding.bindPort(53306))
-                    val hostConfig = HostConfig.newHostConfig().withPortBindings(ports)
-                    cmd.withHostConfig(hostConfig)
+        @JvmStatic @BeforeAll
+        fun beforeAll() {
+            ensureStarted()
+            // Add shutdown hook to ensure containers are stopped when JVM exits
+            Runtime.getRuntime().addShutdownHook(Thread {
+                stopContainers()
+            })
+        }
+
+        private fun stopContainers() {
+            try {
+                // Stop all test containers
+                if (redis.isRunning) {
+                    redis.stop()
+                    println("[DEBUG_LOG] Redis container stopped")
                 }
-                waitingFor(Wait.forListeningPort())
-                withReuse(false)
+
+                if (mysql.isRunning) {
+                    mysql.stop()
+                    println("[DEBUG_LOG] MySQL container stopped")
+                }
+
+                if (mongo.isRunning) {
+                    mongo.stop()
+                    println("[DEBUG_LOG] MongoDB container stopped")
+                }
+
+                if (kafka.isRunning) {
+                    kafka.stop()
+                    println("[DEBUG_LOG] Kafka container stopped")
+                }
+
+                if (es.isRunning) {
+                    es.stop()
+                    println("[DEBUG_LOG] Elasticsearch container stopped")
+                }
+
+                println("[DEBUG_LOG] All containers stopped successfully")
+            } catch (e: Exception) {
+                println("[DEBUG_LOG] Error stopping containers: ${e.message}")
+                // Don't rethrow to avoid breaking test execution
             }
-
-        private val mongoContainer = MongoDBContainer(DockerImageName.parse("mongo:latest"))
-            .apply {
-                withExposedPorts(27017)
-                withCreateContainerCmdModifier { cmd ->
-                    val ports = Ports()
-                    ports.bind(ExposedPort.tcp(27017), Binding.bindPort(57017))
-                    val hostConfig = HostConfig.newHostConfig().withPortBindings(ports)
-                    cmd.withHostConfig(hostConfig)
-                }
-                waitingFor(Wait.forListeningPort())
-                withReuse(false)
-            }
-
-        private val elasticsearchContainer =
-            ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:7.17.10")
-                .apply {
-                    withEnv("xpack.security.enabled", "false")
-                    withEnv("discovery.type", "single-node")
-                    withExposedPorts(9200, 9300)
-                    withCreateContainerCmdModifier { cmd ->
-                        val ports = Ports()
-                        ports.bind(ExposedPort.tcp(9200), Binding.bindPort(59200))
-                        ports.bind(ExposedPort.tcp(9300), Binding.bindPort(59300))
-                        val hostConfig = HostConfig.newHostConfig().withPortBindings(ports)
-                        cmd.withHostConfig(hostConfig)
-                    }
-                    waitingFor(Wait.forListeningPort())
-                    withReuse(false)
-                }
-
-        @JvmStatic
-        @BeforeAll
-        fun startContainers() {
-            redisContainer.start()
-            mysqlContainer.start()
-            mongoContainer.start()
-            elasticsearchContainer.start()
         }
 
         @JvmStatic
         @DynamicPropertySource
-        fun overrideProperties(registry: DynamicPropertyRegistry) {
+        fun props(reg: DynamicPropertyRegistry) {
+            ensureStarted()
+
             // Redis
-            registry.add("spring.data.redis.host") { redisContainer.host }
-            registry.add("spring.data.redis.port") { 56379 }
+            reg.add("spring.redis.master") { "redis://${redis.host}:${redis.getMappedPort(6379)}" }
+            reg.add("spring.redis.slave") { "redis://${redis.host}:${redis.getMappedPort(6379)}" }
 
-            // MySQL(JDBC)
-            registry.add("spring.datasource.url") {
-                "jdbc:mysql://${mysqlContainer.host}:53306/${mysqlContainer.databaseName}"
+            // Flyway(JDBC)
+            reg.add("spring.flyway.url") {
+                "jdbc:mysql://${mysql.host}:${mysql.getMappedPort(3306)}/${mysql.databaseName}?useUnicode=true&characterEncoding=utf8&connectionTimeZone=LOCAL"
             }
-            registry.add("spring.datasource.username") { mysqlContainer.username }
-            registry.add("spring.datasource.password") { mysqlContainer.password }
+            reg.add("spring.flyway.user") { mysql.username }
+            reg.add("spring.flyway.password") { mysql.password }
 
-            // MySQL (R2DBC)
-            registry.add("spring.r2dbc.url") {
-                "r2dbc:mysql://${mysqlContainer.host}:53306/${mysqlContainer.databaseName}"
+            // R2DBC
+            val r2dbcUrl = "r2dbc:mysql://${mysql.host}:${mysql.getMappedPort(3306)}/${mysql.databaseName}"
+            reg.add("spring.r2dbc.url") { r2dbcUrl }
+            reg.add("spring.r2dbc.username") { mysql.username }
+            reg.add("spring.r2dbc.password") { mysql.password }
+
+            // 네가 쓰는 커스텀 master/slave 키도 그대로 유지해서 내려줌 (있는 경우)
+            reg.add("spring.r2dbc.master.url") { r2dbcUrl }
+            reg.add("spring.r2dbc.master.username") { mysql.username }
+            reg.add("spring.r2dbc.master.password") { mysql.password }
+            reg.add("spring.r2dbc.slave.url") { r2dbcUrl }
+            reg.add("spring.r2dbc.slave.username") { mysql.username }
+            reg.add("spring.r2dbc.slave.password") { mysql.password }
+
+            // Mongo (선택)
+            if (mongo.isRunning) {
+                reg.add("spring.data.mongodb.uri") { "mongodb://${mongo.host}:${mongo.getMappedPort(27017)}/testdb" }
             }
-            registry.add("spring.r2dbc.username") { mysqlContainer.username }
-            registry.add("spring.r2dbc.password") { mysqlContainer.password }
 
-            // MongoDB
-            registry.add("spring.data.mongodb.uri") {
-                "mongodb://${mongoContainer.host}:57017/testdb"
+            // Elasticsearch (선택)
+            if (es.isRunning) {
+                reg.add("spring.elasticsearch.uris") { "http://${es.host}:${es.getMappedPort(9200)}" }
             }
 
-            // Elasticsearch
-            registry.add("spring.elasticsearch.uris") {
-                "http://${elasticsearchContainer.host}:59200"
+            // Kafka (선택)
+            if (kafka.isRunning) {
+                reg.add("spring.kafka.bootstrap-servers") { kafka.bootstrapServers }
             }
-
-            // Flyway
-            registry.add("spring.flyway.enabled") { true }
-            registry.add("spring.flyway.clean-disabled") { false }
-            registry.add("spring.flyway.locations") { "classpath:db/migration" }
         }
     }
 }

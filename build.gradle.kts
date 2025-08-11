@@ -34,6 +34,11 @@ dependencies {
 	// r2dbc
 	implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
 
+	// flyway for database migrations
+	implementation("org.springframework.boot:spring-boot-starter-jdbc")
+	implementation("org.flywaydb:flyway-core")
+	implementation("org.flywaydb:flyway-mysql")
+
 	// redis
 	implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
 	implementation("org.redisson:redisson:3.50.0")
@@ -79,6 +84,7 @@ dependencies {
 	testImplementation("org.testcontainers:mongodb")
 	testImplementation("org.testcontainers:mysql")
 	testImplementation("org.testcontainers:r2dbc")
+	testImplementation("org.testcontainers:kafka")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -101,4 +107,5 @@ tasks.withType<Test> {
 
 tasks.test {
 	jvmArgs = listOf("-Dtestcontainers.ryuk.disabled=true")
+	systemProperty("spring.profiles.active", "test")
 }

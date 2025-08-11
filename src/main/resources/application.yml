@@ -1,5 +1,3 @@
-profile: local
-
 application.name: yosep-reactive-boiler-plate-kotlin-server
 
 server:
@@ -9,6 +7,17 @@ server:
     access: true
 
 spring:
+  flyway:
+    enabled: true
+    # 마이그레이션 스크립트 위치 (기본값과 동일하지만 명시)
+    locations: classpath:db/migration
+    # JDBC로 접속할 DB 정보 (R2DBC 아님!)
+    url: jdbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=utf8&connectionTimeZone=LOCAL
+    user: myuser
+    password: secret
+    # 선택 항목들
+    baseline-on-migrate: false     # 기존 빈 스키마면 false 권장
+    clean-disabled: true           # 실서버 안전장치 (원하면 false로)
   redis:
     master: redis://localhost:6379
     slave: redis://localhost:6379

@@ -1,4 +1,4 @@
-package com.finda.services.infra.db.config
+package com.yosep.server.infrastructure.db.config
 
 import io.r2dbc.spi.ConnectionFactories
 import io.r2dbc.spi.ConnectionFactory
