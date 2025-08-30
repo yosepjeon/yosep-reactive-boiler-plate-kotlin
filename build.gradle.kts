@@ -62,6 +62,10 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
+//	implementation(platform("io.github.resilience4j:resilience4j-bom:2.3.0"))
+//	implementation("io.github.resilience4j:resilience4j-spring-boot3")
+//	implementation("io.github.resilience4j:resilience4j-reactor")
+//	implementation("io.github.resilience4j:resilience4j-all")
 
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")

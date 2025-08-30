@@ -75,3 +75,24 @@ auto:
   create:
     topics:
       ena: true
+
+webclient:
+  external:
+    connection-timeout: 60000
+    response-timeout: 60000
+    read-timeout: 60000
+    write-timeout: 60000
+    byte-cnt: 2097152  # 2 * 1024 * 1024
+
+external:
+  server:
+    url: http://localhost:20003
+
+ratelimit:
+  max-limit: 100000
+  min-limit: 30
+  failure:
+    threshold-ms: 500       # latency 임계
+    n-threshold: 3          # 연속 초과 n회
+    md: 0.5                 # 감속 비율
+    counter-ttl-sec: 60     # 카운터 TTL
