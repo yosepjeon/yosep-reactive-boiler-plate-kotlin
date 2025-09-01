@@ -58,9 +58,6 @@ class ReactiveAimdSlowStartRateCoordinator(
     }
 
     suspend fun reportSuccess(org: String): Int {
-        println("############ successScript")
-        println(successScript)
-
         val result: Long = redissonReactiveClient.script.eval<Long>(
             RScript.Mode.READ_WRITE,
             successScript,
