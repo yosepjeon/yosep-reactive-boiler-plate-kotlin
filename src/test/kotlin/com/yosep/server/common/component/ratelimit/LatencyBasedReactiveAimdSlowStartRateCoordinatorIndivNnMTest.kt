@@ -35,7 +35,7 @@ class LatencyBasedReactiveAimdSlowStartRateCoordinatorIndivNnMTest(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `getCurrentLimit writes default into Redis hash when empty`() = runTest {
+    fun `비어있으면 getCurrentLimit가 기본값을 Redis 해시에 기록한다`() = runTest {
         val org = "TEST_ORG_DB_FALLBACK_LAT_INDIV_NM"
         val initialQps = 2345
 
@@ -63,7 +63,7 @@ class LatencyBasedReactiveAimdSlowStartRateCoordinatorIndivNnMTest(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `reportSuccess increases by n then by m at cap`() = runTest {
+    fun `성공 시 n배로 증가하고 상한에선 m씩 증가한다`() = runTest {
         val org = "TEST_ORG_LAT_SUCCESS_INDIV_NM"
         val initialQps = 100
         val entity = OrgRateLimitConfigEntity(
@@ -101,7 +101,7 @@ class LatencyBasedReactiveAimdSlowStartRateCoordinatorIndivNnMTest(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `reportFailure decreases with md and not below MIN_LIMIT`() = runTest {
+    fun `실패 시 md로 감소하며 MIN_LIMIT 아래로 내려가지 않는다`() = runTest {
         val org = "TEST_ORG_LAT_FAILURE_INDIV_NM"
         val initialQps = 100
         val entity = OrgRateLimitConfigEntity(

@@ -38,7 +38,7 @@ class ReactiveAimdSlowStartRateCoordinatorIndivTest(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `getCurrentLimit should fallback to DB and write to Redis when Redis empty`() = runTest {
+    fun `Redis가 비어있으면 DB에서 조회하여 Redis에 기록한다`() = runTest {
         val org = "TEST_ORG_DB_FALLBACK_INDIV"
         val initialQps = 1234
 
@@ -64,7 +64,7 @@ class ReactiveAimdSlowStartRateCoordinatorIndivTest(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `reportSuccess should increase limit with slow-start doubling then cap at MAX_LIMIT`() = runTest {
+    fun `성공 시 슬로우스타트로 두 배 증가하고 MAX_LIMIT에서 상한된다`() = runTest {
         val org = "TEST_ORG_SUCCESS_INDIV"
         val initialQps = 100
         val entity = OrgRateLimitConfigEntity(
@@ -99,7 +99,7 @@ class ReactiveAimdSlowStartRateCoordinatorIndivTest(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `reportFailure should decrease limit with multiplicative decrease and not go below MIN_LIMIT`() = runTest {
+    fun `실패 시 곱감으로 감소하되 MIN_LIMIT 아래로 내려가지 않는다`() = runTest {
         val org = "TEST_ORG_FAILURE_INDIV"
         val initialQps = 100
         val entity = OrgRateLimitConfigEntity(
