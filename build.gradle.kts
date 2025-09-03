@@ -112,4 +112,8 @@ tasks.withType<Test> {
 tasks.test {
 	jvmArgs = listOf("-Dtestcontainers.ryuk.disabled=true")
 	systemProperty("spring.profiles.active", "test")
+	testLogging {
+		showStandardStreams = true     // ← 이거!
+		events("passed", "failed", "skipped")
+	}
 }

@@ -1,5 +1,6 @@
 package com.yosep.server.infrastructure.redis.component
 
+import kotlinx.coroutines.reactive.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import lombok.RequiredArgsConstructor
 import lombok.extern.slf4j.Slf4j
@@ -35,6 +36,10 @@ class RedisCommandHelper(
 
     suspend fun get(key: String): Any? {
         return getRedisBucket(key).get().awaitSingleOrNull()
+    }
+
+    suspend fun keys(): List<String> {
+        return redissonReactiveClient.keys.keys.collectList().awaitSingle() ?: emptyList()
     }
 
     suspend fun getOrDefault(key: String, defaultValue: Any): Any? {
