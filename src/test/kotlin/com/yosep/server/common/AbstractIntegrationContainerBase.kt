@@ -1,7 +1,7 @@
 package com.yosep.server.common
 
 import com.yosep.server.infrastructure.db.common.write.repository.CircuitBreakerConfigWriteRepository
-import com.yosep.server.infrastructure.db.common.write.repository.MydataOrgInfoWriteRepository
+import com.yosep.server.infrastructure.db.common.write.repository.OrgInfoWriteRepository
 import com.yosep.server.infrastructure.db.common.write.repository.OrgRateLimitConfigWriteRepository
 import com.yosep.server.infrastructure.db.common.write.repository.WebClientConfigRepository
 import kotlinx.coroutines.flow.toList
@@ -42,36 +42,36 @@ abstract class AbstractIntegrationContainerBase {
     private var webClientConfigRepository: WebClientConfigRepository? = null
 
     @Autowired(required = false)
-    private var mydataOrgInfoWriteRepository: MydataOrgInfoWriteRepository? = null
+    private var orgInfoWriteRepository: OrgInfoWriteRepository? = null
 
     @AfterEach
     open fun cleanupTestData() {
         runBlocking {
             try {
-                // Clean up Redis test data
+                // Redis 테스트 데이터 정리
                 cleanupRedisData()
 
-                // Clean up database test data using repositories
+                // 리포지토리를 사용해 DB 테스트 데이터 정리
                 cleanupDatabaseTables()
 
                 println("[DEBUG_LOG] Test data cleanup completed successfully")
             } catch (e: Exception) {
                 println("[DEBUG_LOG] Error during test data cleanup: ${e.message}")
-                // Don't rethrow to avoid breaking test execution
+                // 테스트 실행이 중단되지 않도록 예외를 다시 던지지 않음
             }
         }
     }
 
     private suspend fun cleanupDatabaseTables() {
         try {
-            // Delete all test data from tables using repositories
+            // 리포지토리를 사용해 테이블 테스트 데이터 삭제
             circuitBreakerConfigWriteRepository?.deleteAll()
             orgRateLimitConfigWriteRepository?.deleteAll()
             webClientConfigRepository?.deleteAll()
 
-            // Only delete test data from mydata_org_info (preserve reference data)
-            // Get all entities and delete only test ones
-            mydataOrgInfoWriteRepository?.let { repo ->
+            // mydata_org_info는 테스트 데이터만 삭제(레퍼런스 데이터 보존)
+            // 전체 엔티티 조회 후 테스트 데이터만 삭제
+            orgInfoWriteRepository?.let { repo ->
                 val allOrgInfos = repo.findAll().toList()
                 val testOrgInfos = allOrgInfos.filter {
                     it.orgCode.startsWith("ORG_") || it.orgCode == "ORG_DELETE"
@@ -82,13 +82,13 @@ abstract class AbstractIntegrationContainerBase {
             println("[DEBUG_LOG] Database tables cleaned up using repositories")
         } catch (e: Exception) {
             println("[DEBUG_LOG] Error cleaning up database tables: ${e.message}")
-            // Don't rethrow to avoid breaking test execution
+            // 테스트 실행이 중단되지 않도록 예외를 다시 던지지 않음
         }
     }
 
     private suspend fun cleanupRedisData() {
         try {
-            // Delete all Redis keys
+            // Redis 키 전체 삭제
             redissonReactiveClient?.let { client ->
                 val keys = client.keys
                 keys.flushall().awaitSingleOrNull()
@@ -96,7 +96,7 @@ abstract class AbstractIntegrationContainerBase {
             }
         } catch (e: Exception) {
             println("[DEBUG_LOG] Error cleaning up Redis data: ${e.message}")
-            // Don't rethrow to avoid breaking test execution
+            // 테스트 실행이 중단되지 않도록 예외를 다시 던지지 않음
         }
     }
 
@@ -105,7 +105,7 @@ abstract class AbstractIntegrationContainerBase {
         private val redis = GenericContainer(DockerImageName.parse("redis:latest")).apply {
             withExposedPorts(6379)
             waitingFor(Wait.forLogMessage(".*Ready to accept connections.*", 1).withStartupTimeout(Duration.ofSeconds(60)))
-            withReuse(true) // Enable reuse for better performance across test classes
+            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
         }
 
         private val mysql = MySQLContainer(DockerImageName.parse("mysql:8.0.33")).apply {
@@ -113,24 +113,24 @@ abstract class AbstractIntegrationContainerBase {
             withUsername("myuser")
             withPassword("secret")
             waitingFor(Wait.forLogMessage(".*ready for connections.*", 1).withStartupTimeout(Duration.ofSeconds(90)))
-            withReuse(true) // Enable reuse for better performance across test classes
+            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
         }
 
         private val mongo = MongoDBContainer(DockerImageName.parse("mongo:latest")).apply {
             waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(60)))
-            withReuse(true) // Enable reuse for better performance across test classes
+            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
         }
 
         private val es = ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:7.17.10").apply {
             withEnv("xpack.security.enabled", "false")
             withEnv("discovery.type", "single-node")
             waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
-            withReuse(true) // Enable reuse for better performance across test classes
+            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
         }
 
         private val kafka = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0")).apply {
             // Testcontainers용 단일 브로커 (bootstrapServers 제공)
-            withReuse(true) // Enable reuse for better performance across test classes
+            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
             waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
         }
 
@@ -139,9 +139,9 @@ abstract class AbstractIntegrationContainerBase {
         private fun ensureStarted() {
             if (!started) synchronized(this) {
                 if (!started) {
-                    // 필수 컨테이너 먼저
+                    // 필수 컨테이너 먼저 시작
                     Startables.deepStart(listOf(redis, mysql)).join()
-                    // 선택 컨테이너 (있으면 사용)
+                    // 선택 컨테이너(있으면 사용)
                     try { mongo.start() } catch (_: Exception) {}
                     try { es.start() } catch (_: Exception) {}
                     try { kafka.start() } catch (_: Exception) {}
@@ -153,7 +153,7 @@ abstract class AbstractIntegrationContainerBase {
         @JvmStatic @BeforeAll
         fun beforeAll() {
             ensureStarted()
-            // Add shutdown hook to ensure containers are stopped when JVM exits
+            // JVM 종료 시 컨테이너가 중지되도록 종료 훅 등록
             Runtime.getRuntime().addShutdownHook(Thread {
                 stopContainers()
             })
@@ -161,7 +161,7 @@ abstract class AbstractIntegrationContainerBase {
 
         private fun stopContainers() {
             try {
-                // Stop all test containers
+                // 모든 테스트 컨테이너 중지
                 if (redis.isRunning) {
                     redis.stop()
                     println("[DEBUG_LOG] Redis container stopped")
@@ -190,7 +190,7 @@ abstract class AbstractIntegrationContainerBase {
                 println("[DEBUG_LOG] All containers stopped successfully")
             } catch (e: Exception) {
                 println("[DEBUG_LOG] Error stopping containers: ${e.message}")
-                // Don't rethrow to avoid breaking test execution
+                // 테스트 실행이 중단되지 않도록 예외를 다시 던지지 않음
             }
         }
 
@@ -216,7 +216,7 @@ abstract class AbstractIntegrationContainerBase {
             reg.add("spring.r2dbc.username") { mysql.username }
             reg.add("spring.r2dbc.password") { mysql.password }
 
-            // 네가 쓰는 커스텀 master/slave 키도 그대로 유지해서 내려줌 (있는 경우)
+            // 커스텀 master/slave 키도 동일하게 내려줌(있는 경우)
             reg.add("spring.r2dbc.master.url") { r2dbcUrl }
             reg.add("spring.r2dbc.master.username") { mysql.username }
             reg.add("spring.r2dbc.master.password") { mysql.password }

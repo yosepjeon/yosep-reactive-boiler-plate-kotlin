@@ -35,8 +35,8 @@ class ReactiveAimdSlowStartRateCoordinator(
 
     @PostConstruct
     fun loadScripts() {
-        successScript = successScriptResource.inputStream.readAllBytes().toString(StandardCharsets.UTF_8)
-        failureScript = failureScriptResource.inputStream.readAllBytes().toString(StandardCharsets.UTF_8)
+        successScriptResource.inputStream.use { successScript = it.readAllBytes().toString(StandardCharsets.UTF_8) }
+        failureScriptResource.inputStream.use { failureScript = it.readAllBytes().toString(StandardCharsets.UTF_8) }
     }
 
     suspend fun getCurrentLimit(org: String): Int {

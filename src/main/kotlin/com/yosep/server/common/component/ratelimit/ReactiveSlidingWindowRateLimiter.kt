@@ -21,7 +21,7 @@ class ReactiveSlidingWindowRateLimiter(
 
     @PostConstruct
     fun loadScript() {
-        script = luaSlidingWindowResource.inputStream.readAllBytes().toString(StandardCharsets.UTF_8)
+        luaSlidingWindowResource.inputStream.use { script = it.readAllBytes().toString(StandardCharsets.UTF_8) }
     }
 
     suspend fun tryAcquireSuspend(key: String, maxQps: Int, windowMs: Int): Boolean {

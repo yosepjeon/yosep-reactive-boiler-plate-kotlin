@@ -4,6 +4,7 @@ import com.yosep.server.common.component.YosepDataParser
 import com.yosep.server.infrastructure.kafka.config.KafkaTopicConfig
 import com.yosep.server.infrastructure.kafka.message.common.CommonMessage
 import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,7 +26,7 @@ class KafkaTestListener1(
     private val yosepDataParser: YosepDataParser
 ): ApplicationRunner {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("KafkaTestListener1"))
 
     override fun run(args: ApplicationArguments) {
         // Spring Boot 애플리케이션이 모두 초기화된 후 호출됨

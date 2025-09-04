@@ -52,8 +52,8 @@ class LatencyBasedReactiveAimdSlowStartRateCoordinator(
 
     @PostConstruct
     fun loadScripts() {
-        unifiedScript = unifiedScriptResource.inputStream.readAllBytes()
-            .toString(StandardCharsets.UTF_8)
+        unifiedScriptResource.inputStream.use { unifiedScript = it.readAllBytes()
+            .toString(StandardCharsets.UTF_8) }
     }
 
     suspend fun getCurrentLimit(org: String): Int {

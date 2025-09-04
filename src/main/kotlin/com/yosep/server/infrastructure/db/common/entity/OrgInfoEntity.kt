@@ -7,8 +7,8 @@ import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDateTime
 
-@Table("mydata_org_info")
-data class MydataOrgInfoEntity private constructor(
+@Table("org_info")
+data class OrgInfoEntity private constructor(
     @Id
     @Column("org_code")
     val orgCode: String,
@@ -101,7 +101,7 @@ data class MydataOrgInfoEntity private constructor(
 
     override fun isNew(): Boolean = isNew
 
-    fun markNew(): MydataOrgInfoEntity {
+    fun markNew(): OrgInfoEntity {
         this.isNew = true
         return this
     }
