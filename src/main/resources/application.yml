@@ -12,9 +12,9 @@ spring:
     # 마이그레이션 스크립트 위치 (기본값과 동일하지만 명시)
     locations: classpath:db/migration
     # JDBC로 접속할 DB 정보 (R2DBC 아님!)
-    url: jdbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=utf8&connectionTimeZone=LOCAL
-    user: myuser
-    password: secret
+    url: jdbc:mysql://localhost:3306/testdb?useUnicode=true&characterEncoding=utf8&connectionTimeZone=LOCAL
+    user: root
+    password: verysecret
     # 선택 항목들
     baseline-on-migrate: false     # 기존 빈 스키마면 false 권장
     clean-disabled: true           # 실서버 안전장치 (원하면 false로)
@@ -23,11 +23,11 @@ spring:
     slave: redis://localhost:6379
   r2dbc:
     master:
-      url: r2dbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=utf8&autoreconnect=true
+      url: r2dbc:mysql://localhost:3306/testdb?useUnicode=true&characterEncoding=utf8&autoreconnect=true
       username: myuser
       password: secret
     slave:
-      url: r2dbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=utf8&autoreconnect=true
+      url: r2dbc:mysql://localhost:3306/testdb?useUnicode=true&characterEncoding=utf8&autoreconnect=true
       username: myuser
       password: secret
   kafka:
@@ -77,12 +77,14 @@ auto:
       ena: true
 
 webclient:
-  external:
-    connection-timeout: 60000
-    response-timeout: 60000
-    read-timeout: 60000
-    write-timeout: 60000
-    byte-cnt: 2097152  # 2 * 1024 * 1024
+  connection:
+    timeout: 90000
+  response:
+    timeout: 90000
+  read:
+    timeout: 90000
+  write:
+    timeout: 90000
 
 external:
   server:

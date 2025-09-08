@@ -67,6 +67,15 @@ create table org_info
 )
     comment '기관정보' charset = utf8mb3;
 
+CREATE TABLE circuit_breaker_state
+(
+    name       text PRIMARY KEY,
+    state      text        NOT NULL CHECK (state IN ('CLOSED', 'OPEN', 'HALF_OPEN')),
+    version    bigint      NOT NULL,
+    created_at         datetime default CURRENT_TIMESTAMP null,
+    updated_at         datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP
+);
+
 INSERT INTO testdb.org_info (org_code, org_type, org_name, org_regno, corp_regno, serial_num, address, domain, relay_org_code, industry, auth_type, cert_issuer_dn, cert_oid, insert_time, update_time) VALUES ('A1AAAD0000', '02', '한국산업은행', '101-82-03970', '1101350000937', '', '(12902) 경기도 하남시 미사강변한강로 177 (망월동, 한국산업은행IT센터) 9층 디지털전략부', null, 'ZWAAEA0000', 'bank', '01', null, null, '2021-12-07 16:53:20', '2022-01-26 18:59:40');
 INSERT INTO testdb.org_info (org_code, org_type, org_name, org_regno, corp_regno, serial_num, address, domain, relay_org_code, industry, auth_type, cert_issuer_dn, cert_oid, insert_time, update_time) VALUES ('A1AAAK0000', '01', 'SC제일', '102-81-21843', '1155522113233', '110111-0013419', '제일행 000', 'https://mydata-ut.standardchartered.co.kr:443', 'ZWAAEA0000', 'bank', '01', null, null, '2021-12-07 16:53:20', '2023-07-25 15:51:09');
 INSERT INTO testdb.org_info (org_code, org_type, org_name, org_regno, corp_regno, serial_num, address, domain, relay_org_code, industry, auth_type, cert_issuer_dn, cert_oid, insert_time, update_time) VALUES ('A1AABG0000', '01', '농협은행 주식회사', '104-86-39742', '1101114809385', '104-86-39742', '서울특별시 중구 통일로 120', 'https://devopendataapi.nonghyup.com:9020', 'ZWAAEA0000', 'bank', '01', null, null, '2021-12-07 16:53:20', '2023-07-25 15:51:09');

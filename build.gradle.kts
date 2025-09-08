@@ -67,6 +67,8 @@ dependencies {
 //	implementation("io.github.resilience4j:resilience4j-reactor")
 //	implementation("io.github.resilience4j:resilience4j-all")
 
+	implementation("com.googlecode.json-simple:json-simple:1.1.1")
+
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
