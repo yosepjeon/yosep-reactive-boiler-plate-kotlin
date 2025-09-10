@@ -18,6 +18,7 @@ spring:
     # 선택 항목들
     baseline-on-migrate: false     # 기존 빈 스키마면 false 권장
     clean-disabled: true           # 실서버 안전장치 (원하면 false로)
+    clean-on-validation-error: true   # ★ 검증 실패 시 clean → migrate
   redis:
     master: redis://localhost:6379
     slave: redis://localhost:6379

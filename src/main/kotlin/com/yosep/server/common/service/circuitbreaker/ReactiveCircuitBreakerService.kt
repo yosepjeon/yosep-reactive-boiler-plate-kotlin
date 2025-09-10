@@ -6,11 +6,12 @@ import com.yosep.server.infrastructure.db.common.entity.CircuitBreakerConfigEnti
 import com.yosep.server.infrastructure.db.common.write.repository.CircuitBreakerConfigWriteRepository
 import com.yosep.server.infrastructure.db.common.write.repository.OrgInfoWriteRepository
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
-import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingleOrNull
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import org.springframework.transaction.reactive.TransactionalOperator
 import org.springframework.transaction.reactive.executeAndAwait
@@ -24,7 +25,7 @@ class ReactiveCircuitBreakerService(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("ReactiveCircuitBreakerService"))
 
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent::class)
     fun init() {
         scope.launch {
             // 1) 모두 등록

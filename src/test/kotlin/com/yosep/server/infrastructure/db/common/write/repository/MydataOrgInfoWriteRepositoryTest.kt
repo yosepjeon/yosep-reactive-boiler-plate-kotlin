@@ -1,7 +1,7 @@
 package com.yosep.server.infrastructure.db.common.write.repository
 
 import com.yosep.server.common.AbstractIntegrationContainerBase
-import com.yosep.server.infrastructure.db.common.entity.MydataOrgInfoEntity
+import com.yosep.server.infrastructure.db.common.entity.OrgInfoEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -17,14 +17,14 @@ import java.time.LocalDateTime
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MydataOrgInfoWriteRepositoryTest(
-    @Autowired private val mydataOrgInfoWriteRepository: MydataOrgInfoWriteRepository
+    @Autowired private val orgInfoWriteRepository: OrgInfoWriteRepository
 ) : AbstractIntegrationContainerBase() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `save and findById test`() = runTest {
         val uniqueOrgCode = "T${System.currentTimeMillis().toString().takeLast(9)}"
-        val entity = MydataOrgInfoEntity(
+        val entity = OrgInfoEntity(
             uniqueOrgCode,
             "01",
             "Test Bank",
@@ -43,11 +43,11 @@ class MydataOrgInfoWriteRepositoryTest(
             true
         )
 
-        val savedEntity = mydataOrgInfoWriteRepository.save(entity)
+        val savedEntity = orgInfoWriteRepository.save(entity)
         assertNotNull(savedEntity)
         assertEquals(uniqueOrgCode, savedEntity.orgCode)
 
-        val foundEntity = mydataOrgInfoWriteRepository.findById(uniqueOrgCode)
+        val foundEntity = orgInfoWriteRepository.findById(uniqueOrgCode)
         assertNotNull(foundEntity)
         assertEquals(uniqueOrgCode, foundEntity?.orgCode)
         assertEquals("01", foundEntity?.orgType)
@@ -62,7 +62,7 @@ class MydataOrgInfoWriteRepositoryTest(
         val uniqueOrgCode1 = "T${System.currentTimeMillis().toString().takeLast(8)}1"
         val uniqueOrgCode2 = "T${System.currentTimeMillis().toString().takeLast(8)}2"
         
-        val entity1 = MydataOrgInfoEntity(
+        val entity1 = OrgInfoEntity(
             uniqueOrgCode1,
             "01",
             "Test Card Company",
@@ -81,7 +81,7 @@ class MydataOrgInfoWriteRepositoryTest(
             true
         )
 
-        val entity2 = MydataOrgInfoEntity(
+        val entity2 = OrgInfoEntity(
             uniqueOrgCode2,
             "01",
             "Test Insurance",
@@ -100,10 +100,10 @@ class MydataOrgInfoWriteRepositoryTest(
             true
         )
 
-        mydataOrgInfoWriteRepository.save(entity1)
-        mydataOrgInfoWriteRepository.save(entity2)
+        orgInfoWriteRepository.save(entity1)
+        orgInfoWriteRepository.save(entity2)
 
-        val allEntities = mydataOrgInfoWriteRepository.findAll().toList()
+        val allEntities = orgInfoWriteRepository.findAll().toList()
         assertTrue(allEntities.size >= 2)
 
         val savedOrgCodes = allEntities.map { it.orgCode }
@@ -114,7 +114,7 @@ class MydataOrgInfoWriteRepositoryTest(
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `delete test`() = runTest {
-        val entity = MydataOrgInfoEntity(
+        val entity = OrgInfoEntity(
             "ORG_DELETE",
             "01",
             "Test Securities",
@@ -133,21 +133,21 @@ class MydataOrgInfoWriteRepositoryTest(
             true
         )
 
-        mydataOrgInfoWriteRepository.save(entity)
+        orgInfoWriteRepository.save(entity)
 
-        val foundBeforeDelete = mydataOrgInfoWriteRepository.findById("ORG_DELETE")
+        val foundBeforeDelete = orgInfoWriteRepository.findById("ORG_DELETE")
         assertNotNull(foundBeforeDelete)
 
-        mydataOrgInfoWriteRepository.deleteById("ORG_DELETE")
+        orgInfoWriteRepository.deleteById("ORG_DELETE")
 
-        val foundAfterDelete = mydataOrgInfoWriteRepository.findById("ORG_DELETE")
+        val foundAfterDelete = orgInfoWriteRepository.findById("ORG_DELETE")
         assertNull(foundAfterDelete)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `existsById test`() = runTest {
-        val entity = MydataOrgInfoEntity(
+        val entity = OrgInfoEntity(
             "ORG_EXISTS",
             "01",
             "Test Capital",
@@ -166,19 +166,19 @@ class MydataOrgInfoWriteRepositoryTest(
             true
         )
 
-        val existsBeforeSave = mydataOrgInfoWriteRepository.existsById("ORG_EXISTS")
+        val existsBeforeSave = orgInfoWriteRepository.existsById("ORG_EXISTS")
         assertFalse(existsBeforeSave)
 
-        mydataOrgInfoWriteRepository.save(entity)
+        orgInfoWriteRepository.save(entity)
 
-        val existsAfterSave = mydataOrgInfoWriteRepository.existsById("ORG_EXISTS")
+        val existsAfterSave = orgInfoWriteRepository.existsById("ORG_EXISTS")
         assertTrue(existsAfterSave)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `update test`() = runTest {
-        val entity = MydataOrgInfoEntity(
+        val entity = OrgInfoEntity(
             "ORG_UPDATE",
             "01",
             "Original Bank",
@@ -197,9 +197,9 @@ class MydataOrgInfoWriteRepositoryTest(
             true
         )
 
-        mydataOrgInfoWriteRepository.save(entity)
+        orgInfoWriteRepository.save(entity)
 
-        val updatedEntity = MydataOrgInfoEntity(
+        val updatedEntity = OrgInfoEntity(
             "ORG_UPDATE",
             "01",
             "Updated Bank",
@@ -218,7 +218,7 @@ class MydataOrgInfoWriteRepositoryTest(
             false
         )
 
-        val savedUpdatedEntity = mydataOrgInfoWriteRepository.save(updatedEntity)
+        val savedUpdatedEntity = orgInfoWriteRepository.save(updatedEntity)
         assertEquals("Updated Bank", savedUpdatedEntity.orgName)
         assertEquals("Updated Address", savedUpdatedEntity.address)
         assertEquals("updatedbank.com", savedUpdatedEntity.domain)

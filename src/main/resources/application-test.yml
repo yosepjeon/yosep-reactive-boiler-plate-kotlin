@@ -21,13 +21,10 @@ spring:
 
   flyway:
     enabled: true
-    # 마이그레이션 스크립트 위치 (기본값과 동일하지만 명시)
     locations: classpath:db/migration
-    # JDBC로 접속할 DB 정보는 @DynamicPropertySource에서 동적으로 설정됨
-    # url, user, password는 testcontainer에서 동적으로 주입
-    # 선택 항목들
-    baseline-on-migrate: true      # 테스트 환경에서는 true로 설정
-    clean-disabled: false          # 테스트 환경에서는 false로 설정
+    baseline-on-migrate: true         # ← 기존 스키마가 있을 때만 베이스라인 수행
+    clean-disabled: true             # ← 테스트라 허용
+    clean-on-validation-error: true   # ★ 검증 실패 시 clean → migrate
   # redis, r2dbc 설정은 @DynamicPropertySource에서 동적으로 설정됨
   kafka:
     # bootstrap-servers는 @DynamicPropertySource에서 동적으로 설정됨

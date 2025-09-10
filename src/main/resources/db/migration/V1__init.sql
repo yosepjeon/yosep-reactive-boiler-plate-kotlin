@@ -1,3 +1,23 @@
+create table org_info
+(
+    org_code       varchar(10)  not null comment '기관코드'
+        primary key,
+    org_type       varchar(2)   not null comment '기관구분',
+    org_name       varchar(60)  null comment '기관명',
+    org_regno      varchar(12)  null comment '사업자등록번호',
+    corp_regno     varchar(13)  null comment '법인등록번호',
+    serial_num     varchar(20)  null comment 'tls인증서 시리얼넘버',
+    address        varchar(200) null comment '주소',
+    domain         varchar(80)  null comment '도메인주소',
+    relay_org_code varchar(10)  null comment '중계기관 기관코드',
+    industry       varchar(10)  null comment '업권',
+    auth_type      varchar(2)   null comment '제공인증방식',
+    cert_issuer_dn varchar(15)  null comment '통합인증기관의 dn값',
+    cert_oid       varchar(300) null comment '허용통합인증서 oid',
+    insert_time    datetime     not null comment '등록일시',
+    update_time    datetime     not null comment '변경일시'
+)comment '기관정보' charset = utf8mb3;
+
 -- auto-generated definition
 create table circuit_breaker_config
 (
@@ -46,30 +66,9 @@ create table webclient_config
     updated_at         datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP
 );
 
-create table org_info
+create table circuit_breaker_state
 (
-    org_code       varchar(10)  not null comment '기관코드'
-        primary key,
-    org_type       varchar(2)   not null comment '기관구분',
-    org_name       varchar(60)  null comment '기관명',
-    org_regno      varchar(12)  null comment '사업자등록번호',
-    corp_regno     varchar(13)  null comment '법인등록번호',
-    serial_num     varchar(20)  null comment 'tls인증서 시리얼넘버',
-    address        varchar(200) null comment '주소',
-    domain         varchar(80)  null comment '도메인주소',
-    relay_org_code varchar(10)  null comment '중계기관 기관코드',
-    industry       varchar(10)  null comment '업권',
-    auth_type      varchar(2)   null comment '제공인증방식',
-    cert_issuer_dn varchar(15)  null comment '통합인증기관의 dn값',
-    cert_oid       varchar(300) null comment '허용통합인증서 oid',
-    insert_time    datetime     not null comment '등록일시',
-    update_time    datetime     not null comment '변경일시'
-)
-    comment '기관정보' charset = utf8mb3;
-
-CREATE TABLE circuit_breaker_state
-(
-    name       text PRIMARY KEY,
+    name       varchar(200) PRIMARY KEY,
     state      text        NOT NULL CHECK (state IN ('CLOSED', 'OPEN', 'HALF_OPEN')),
     version    bigint      NOT NULL,
     created_at         datetime default CURRENT_TIMESTAMP null,

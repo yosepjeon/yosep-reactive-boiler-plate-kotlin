@@ -34,7 +34,7 @@ class KafkaTestListener1(
         }
     }
 
-    private suspend fun consumeCreditIncreaseRequests() {
+    private suspend fun consumeRequests() {
         try {
             test1ConsumerTemplate.receive().asFlow().collect { consumerRecord ->
                 try {
@@ -65,7 +65,7 @@ class KafkaTestListener1(
 
     private fun restartListener() {
         scope.launch {
-            consumeCreditIncreaseRequests()
+            consumeRequests()
         }
     }
 
