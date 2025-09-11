@@ -99,3 +99,16 @@ ratelimit:
     n-threshold: 3          # 연속 초과 n회
     md: 0.5                 # 감속 비율
     counter-ttl-sec: 60     # 카운터 TTL
+
+cb:
+  k8s:
+    namespace: default
+    serviceName: cb-app
+  broadcast:
+    path: /internal/cb/apply
+    portName: http
+  local:
+    # 로컬에서 띄운 두 인스턴스
+    peers:
+      - http://localhost:20000
+      - http://localhost:20001

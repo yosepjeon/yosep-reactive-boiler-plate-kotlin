@@ -24,7 +24,11 @@ repositories {
 
 extra["springCloudVersion"] = "2023.0.1"
 
-dependencies {
+	dependencies {
+		// Mocking for Kotlin (final classes, suspend)
+		testImplementation("io.mockk:mockk:1.13.12")
+		// JSONObject used in ApiExecutor is in configuration-processor jar
+		testImplementation("org.springframework.boot:spring-boot-configuration-processor")
 	// elastic search
 	implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
 
@@ -69,6 +73,8 @@ dependencies {
 
 	implementation("com.googlecode.json-simple:json-simple:1.1.1")
 
+	implementation("io.fabric8:kubernetes-client:6.10.0")
+
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
@@ -78,6 +84,8 @@ dependencies {
 	runtimeOnly("io.asyncer:r2dbc-mysql")
 	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	// Mock HTTP server for integration tests using WebClient
+	testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 	testImplementation("org.springframework.boot:spring-boot-testcontainers")
 	testImplementation("io.projectreactor:reactor-test")
 	testImplementation("io.rest-assured:spring-web-test-client")

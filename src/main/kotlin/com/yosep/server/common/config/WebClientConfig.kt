@@ -1,97 +1,76 @@
 package com.yosep.server.common.config
-
-import com.yosep.server.common.properties.WebClientProperties
 import io.netty.channel.ChannelOption
 import io.netty.handler.timeout.ReadTimeoutHandler
 import io.netty.handler.timeout.WriteTimeoutHandler
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.http.client.reactive.ReactorClientHttpConnector
-import org.springframework.http.codec.ClientCodecConfigurer
-import org.springframework.http.codec.HttpMessageWriter
 import org.springframework.http.codec.LoggingCodecSupport
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction
 import org.springframework.web.reactive.function.client.ExchangeStrategies
 import org.springframework.web.reactive.function.client.WebClient
-import reactor.netty.Connection
+import reactor.core.publisher.Mono
 import reactor.netty.http.client.HttpClient
-import reactor.netty.resources.ConnectionProvider
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import java.util.function.Consumer
 
 @Configuration
-class WebClientConfig(private val webClientProperties: WebClientProperties) {
-    @Value("\${external.server.url}")
-    private val externalServerUrl: String? = null
+class WebClientConfig {
+
+    @Value("\${webclient.connection.timeout}")
+    private var connectTimeoutMillis: Int = 0
+
+    @Value("\${webclient.response.timeout}")
+    private var responseTimeoutMillis: Int = 0
+
+    @Value("\${webclient.read.timeout}")
+    private var readTimeoutMillis: Int = 0
+
+    @Value("\${webclient.write.timeout}")
+    private var writeTimeoutMillis: Int = 0
+
+    private val log = LoggerFactory.getLogger(WebClientConfig::class.java)
 
     @Bean
-    fun externalClient(): WebClient {
-        val exchangeStrategies = getExchangeStrategies(
-            webClientProperties.external!!.byteCnt
-        )
-        return getWebClient(exchangeStrategies, webClientProperties.external!!)
-    }
-
-    fun getExchangeStrategies(byteCnt: Int): ExchangeStrategies {
+    fun defaultWebClient(): WebClient {
         val exchangeStrategies = ExchangeStrategies.builder()
-            .codecs(Consumer { codecs: ClientCodecConfigurer? -> codecs!!.defaultCodecs().maxInMemorySize(byteCnt) })
+            // .codecs { acceptedCodecs(it) } // 필요 시 코덱 설정
             .build()
-
-        exchangeStrategies
-            .messageWriters().stream()
-            .filter { obj: HttpMessageWriter<*>? -> LoggingCodecSupport::class.java.isInstance(obj) }
-            .forEach { writer: HttpMessageWriter<*>? ->
-                (writer as LoggingCodecSupport).setEnableLoggingRequestDetails(
-                    true
-                )
+            .also { strategies ->
+                strategies.messageWriters()
+                    .filterIsInstance<LoggingCodecSupport>()
+                    .forEach { it.setEnableLoggingRequestDetails(true) }
             }
 
-        return exchangeStrategies
-    }
-
-    fun getWebClient(
-        exchangeStrategies: ExchangeStrategies,
-        timoutProperties: WebClientProperties.TimoutProperties
-    ): WebClient {
-        val connectionProvider = ConnectionProvider.builder("custom")
-            .maxConnections(10000) // 최대 연결 수 증가
-            .pendingAcquireMaxCount(100000) // 대기 큐 크기 증가
-            .pendingAcquireTimeout(Duration.ofSeconds(30)) // 대기 타임아웃 설정
-            .build()
+        val httpClient = HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMillis)
+            .responseTimeout(Duration.ofMillis(responseTimeoutMillis.toLong()))
+            .doOnConnected { conn ->
+                conn.addHandlerLast(ReadTimeoutHandler(readTimeoutMillis.toLong(), TimeUnit.MILLISECONDS))
+                    .addHandlerLast(WriteTimeoutHandler(writeTimeoutMillis.toLong(), TimeUnit.MILLISECONDS))
+            }
 
         return WebClient.builder()
-            .clientConnector(
-                ReactorClientHttpConnector(
-                    HttpClient
-                        .create(connectionProvider)
-                        .option<Int?>(
-                            ChannelOption.CONNECT_TIMEOUT_MILLIS,
-                            timoutProperties.connectionTimeout
-                        )
-                        .responseTimeout(Duration.ofMillis(timoutProperties.responseTimeout.toLong()))
-                        .doOnConnected(Consumer { conn: Connection? ->
-                            conn!!.addHandlerLast(
-                                ReadTimeoutHandler(
-                                    timoutProperties.readTimeout.toLong(),
-                                    TimeUnit.MILLISECONDS
-                                )
-                            )
-                                .addHandlerLast(
-                                    WriteTimeoutHandler(
-                                        timoutProperties.writeTimeout.toLong(),
-                                        TimeUnit.MILLISECONDS
-                                    )
-                                )
-                        }
-                        )
-                )
-            )
-            .baseUrl(externalServerUrl!!)
+            .clientConnector(ReactorClientHttpConnector(httpClient))
             .exchangeStrategies(exchangeStrategies)
-            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.ALL_VALUE)
+            .filter(ExchangeFilterFunction.ofRequestProcessor { request ->
+                log.debug("Request: {} {}", request.method(), request.url())
+                request.headers().forEach { name, values ->
+                    values.forEach { value -> log.debug("{} : {}", name, value) }
+                }
+                Mono.just(request)
+            })
+            .filter(ExchangeFilterFunction.ofResponseProcessor { response ->
+                response.headers().asHttpHeaders().forEach { name, values ->
+                    values.forEach { value -> log.debug("{} : {}", name, value) }
+                }
+                Mono.just(response)
+            })
+            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build()
     }
 }

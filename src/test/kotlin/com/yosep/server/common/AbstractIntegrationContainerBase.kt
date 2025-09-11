@@ -9,11 +9,13 @@ import kotlinx.coroutines.reactor.awaitSingleOrNull
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Assumptions
 import org.redisson.api.RedissonReactiveClient
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.testcontainers.DockerClientFactory
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.containers.MongoDBContainer
@@ -134,9 +136,20 @@ abstract class AbstractIntegrationContainerBase {
             waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
         }
 
+        private val dockerAvailable: Boolean = checkDockerAvailable()
+
         @Volatile private var started = false
 
+        private fun checkDockerAvailable(): Boolean {
+            return try {
+                DockerClientFactory.instance().isDockerAvailable
+            } catch (e: Throwable) {
+                false
+            }
+        }
+
         private fun ensureStarted() {
+            if (!dockerAvailable) return
             if (!started) synchronized(this) {
                 if (!started) {
                     // 필수 컨테이너 먼저 시작
@@ -152,11 +165,14 @@ abstract class AbstractIntegrationContainerBase {
 
         @JvmStatic @BeforeAll
         fun beforeAll() {
+            Assumptions.assumeTrue(dockerAvailable, "Docker is not available. Skipping integration tests.")
             ensureStarted()
-            // JVM 종료 시 컨테이너가 중지되도록 종료 훅 등록
-            Runtime.getRuntime().addShutdownHook(Thread {
-                stopContainers()
-            })
+            if (started) {
+                // JVM 종료 시 컨테이너가 중지되도록 종료 훅 등록
+                Runtime.getRuntime().addShutdownHook(Thread {
+                    stopContainers()
+                })
+            }
         }
 
         private fun stopContainers() {
@@ -197,7 +213,9 @@ abstract class AbstractIntegrationContainerBase {
         @JvmStatic
         @DynamicPropertySource
         fun props(reg: DynamicPropertyRegistry) {
+            if (!dockerAvailable) return
             ensureStarted()
+            if (!started) return
 
             // Redis
             reg.add("spring.redis.master") { "redis://${redis.host}:${redis.getMappedPort(6379)}" }
