@@ -88,15 +88,15 @@ class LatencyBasedReactiveAimdSlowStartRateCoordinatorIndivNnMTest(
         val afterSecondSuccess = coordinator.reportSuccess(org = org, n = 3, m = 5, latencyMs = 10)
         assertEquals(900, afterSecondSuccess)
 
-        // Prepare near cap and verify additive m up to max (100000)
+        // Prepare near cap and verify additive m up to max (10000 from test config)
         val map: RMapReactive<String, String> = redissonReactiveClient.getMap("rate:config:$org")
-        map.fastPut("limit_qps", "99999").awaitSingleOrNull()
+        map.fastPut("limit_qps", "9999").awaitSingleOrNull()
 
         val capped = coordinator.reportSuccess(org = org, n = 3, m = 5, latencyMs = 10)
-        assertEquals(100_000, capped)
+        assertEquals(10_000, capped)  // 9999 + 5 = 10004, capped at 10000
 
         val cappedAgain = coordinator.reportSuccess(org = org, n = 3, m = 5, latencyMs = 10)
-        assertEquals(100_000, cappedAgain)
+        assertEquals(10_000, cappedAgain)  // Already at max
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -119,13 +119,17 @@ class LatencyBasedReactiveAimdSlowStartRateCoordinatorIndivNnMTest(
         val start = coordinator.getCurrentLimit(org)
         assertEquals(initialQps, start)
 
-        val afterFirstFailure = coordinator.reportFailure(org = org, latencyMs = 800)
-        assertEquals(50, afterFirstFailure)
+        // With nThreshold=1, first failure triggers decrease immediately
+        val afterFirstFailure = coordinator.reportFailure(org = org, latencyMs = 800, nThreshold = 1)
+        assertEquals(50, afterFirstFailure)  // 100 * 0.5 = 50
 
-        val afterSecondFailure = coordinator.reportFailure(org = org, latencyMs = 800)
-        assertEquals(30, afterSecondFailure)
+        val afterSecondFailure = coordinator.reportFailure(org = org, latencyMs = 800, nThreshold = 1)
+        assertEquals(25, afterSecondFailure)  // 50 * 0.5 = 25
 
-        val afterThirdFailure = coordinator.reportFailure(org = org, latencyMs = 800)
-        assertEquals(30, afterThirdFailure)
+        val afterThirdFailure = coordinator.reportFailure(org = org, latencyMs = 800, nThreshold = 1)
+        assertEquals(12, afterThirdFailure)  // 25 * 0.5 = 12.5, floored to 12
+        
+        val afterFourthFailure = coordinator.reportFailure(org = org, latencyMs = 800, nThreshold = 1)
+        assertEquals(10, afterFourthFailure)  // 12 * 0.5 = 6, but min is 10 from test config
     }
 }

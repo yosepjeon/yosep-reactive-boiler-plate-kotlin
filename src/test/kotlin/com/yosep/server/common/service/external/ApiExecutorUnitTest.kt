@@ -82,7 +82,7 @@ class ApiExecutorUnitTest {
         every { circuitBreaker.tryAcquirePermission() } returns false
 
         // when
-        val rsp: ResponseEntity<org.springframework.boot.configurationprocessor.json.JSONObject> = sut.execute(newRequest(org))
+        val rsp: ResponseEntity<org.springframework.boot.configurationprocessor.json.JSONObject?> = sut.execute(newRequest(org))
 
         // then
         assertEquals(200, rsp.statusCode.value())

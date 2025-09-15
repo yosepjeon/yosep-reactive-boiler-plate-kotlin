@@ -5,7 +5,7 @@ import com.yosep.server.infrastructure.db.common.write.repository.CircuitBreaker
 import com.yosep.server.infrastructure.db.common.write.repository.OrgInfoWriteRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -24,7 +24,7 @@ class ReactiveCircuitBreakerServiceTest @Autowired constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `initializeCircuitBreakers는 멱등적이며 기존 항목을 건너뛴다`() = runTest {
+    fun `initializeCircuitBreakers는 멱등적이며 기존 항목을 건너뛴다`() = runBlocking {
         // circuit_breaker_config 초기화(깨끗한 상태 보장)
         circuitBreakerConfigWriteRepository.deleteAll()
 

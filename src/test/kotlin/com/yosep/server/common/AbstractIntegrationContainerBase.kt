@@ -25,6 +25,7 @@ import org.testcontainers.lifecycle.Startables
 import org.testcontainers.utility.DockerImageName
 import org.testcontainers.containers.wait.strategy.Wait
 import java.time.Duration
+import org.flywaydb.core.Flyway
 
 abstract class AbstractIntegrationContainerBase {
 
@@ -158,6 +159,8 @@ abstract class AbstractIntegrationContainerBase {
                     try { mongo.start() } catch (_: Exception) {}
                     try { es.start() } catch (_: Exception) {}
                     try { kafka.start() } catch (_: Exception) {}
+                    // 컨테이너가 모두 시작되면 즉시 Flyway 마이그레이션 실행 (스키마 보장)
+                    runFlywayMigrations()
                     started = true
                 }
             }
@@ -207,6 +210,25 @@ abstract class AbstractIntegrationContainerBase {
             } catch (e: Exception) {
                 println("[DEBUG_LOG] Error stopping containers: ${e.message}")
                 // 테스트 실행이 중단되지 않도록 예외를 다시 던지지 않음
+            }
+        }
+
+        private fun runFlywayMigrations() {
+            try {
+                val jdbcUrl = "jdbc:mysql://${mysql.host}:${mysql.getMappedPort(3306)}/${mysql.databaseName}?useUnicode=true&characterEncoding=utf8&connectionTimeZone=LOCAL"
+                val user = mysql.username
+                val pass = mysql.password
+                println("[DEBUG_LOG] Running Flyway migrations on: $jdbcUrl")
+                val flyway = Flyway.configure()
+                    .dataSource(jdbcUrl, user, pass)
+                    .locations("classpath:db/migration")
+                    .baselineOnMigrate(true)
+                    .load()
+                flyway.migrate()
+                println("[DEBUG_LOG] Flyway migration completed successfully")
+            } catch (e: Exception) {
+                println("[DEBUG_LOG] Flyway migration failed: ${e.message}")
+                throw e
             }
         }
 

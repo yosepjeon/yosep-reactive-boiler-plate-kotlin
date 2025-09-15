@@ -1,0 +1,70 @@
+spring:
+  r2dbc:
+    url: r2dbc:h2:mem:///testdb?DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+  flyway:
+    enabled: false  # 테스트 환경에서는 Flyway 비활성화
+  redis:
+    host: localhost
+    port: 6379
+  kafka:
+    enabled: false  # 테스트 환경에서는 Kafka 비활성화
+
+# WebClient 설정
+webclient:
+  configs:
+    - org: default
+      base-url: http://localhost:8080
+      connection-timeout: 1000
+      response-timeout: 1000
+      max-in-memory-size: 1048576
+
+# Circuit Breaker 설정
+circuit-breaker:
+  enabled: true
+  default-config:
+    failure-rate-threshold: 50
+    slow-call-rate-threshold: 100
+    slow-call-duration-threshold-ms: 1000
+    wait-duration-in-open-state-ms: 1000
+    permitted-calls-in-half-open-state: 3
+    minimum-number-of-calls: 5
+    sliding-window-size: 10
+
+# Rate Limiting 설정
+ratelimit:
+  enabled: true
+  max-limit: 10000
+  min-limit: 10
+  local:
+    enabled: true
+    window-ms: 1000
+    sync-interval-ms: 1000
+    enable-sync: false  # 테스트에서는 DB 동기화 비활성화
+    min-per-node: 1
+    node-count-cache-ms: 5000
+    counter-ttl-sec: 60
+
+# K8s 관련 설정
+cb:
+  k8s:
+    namespace: default
+    service-name: test-app
+    trust-certs: true
+    connection-timeout: 1000
+    request-timeout: 1000
+  broadcast:
+    path: /internal/cb/apply
+    portName: http
+  local:
+    peers:
+      - http://localhost:8080
+      - http://localhost:8081
+
+# Logging
+logging:
+  level:
+    com.yosep.server: DEBUG
+    org.springframework.r2dbc: DEBUG
+    io.r2dbc.h2: DEBUG

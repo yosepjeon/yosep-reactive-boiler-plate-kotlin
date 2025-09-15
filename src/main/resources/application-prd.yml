@@ -1,0 +1,42 @@
+spring:
+  profiles:
+    active: prd
+
+# 프로덕션 환경에서 K8s 설정
+cb:
+  k8s:
+    namespace: production  # 실제 운영 네임스페이스로 변경
+    service-name: yosep-app  # 실제 서비스 이름으로 변경
+    # master-url은 클러스터 내부에서 실행시 비워둠 (자동 감지)
+    # 외부에서 접근시에만 설정
+    # master-url: https://your-k8s-api.example.com
+    trust-certs: false  # 프로덕션에서는 실제 인증서 사용
+    connection-timeout: 30000
+    request-timeout: 30000
+
+# Rate Limiting 설정 (프로덕션용)
+ratelimit:
+  max-limit: 1000000        # 프로덕션 환경 최대 제한
+  min-limit: 100
+  latency:
+    threshold-ms: 1000      # 프로덕션은 더 관대한 latency 임계값
+  failure:
+    n-threshold: 5          # 프로덕션은 더 많은 실패 허용
+    md: 0.7                 # 프로덕션은 덜 급격한 감속
+  local:
+    enabled: true           # Redis 장애 대비 로컬 rate limiting 활성화
+    sync-interval-ms: 5000  # 프로덕션은 덜 빈번한 동기화
+    enable-sync: true
+    min-per-node: 10        # 프로덕션은 노드당 최소 허용량 더 높게
+    node-count-cache-ms: 10000  # 프로덕션은 캐시 시간 더 길게
+
+# Circuit Breaker 설정 (프로덕션용)
+circuit-breaker:
+  default-config:
+    failure-rate-threshold: 60  # 프로덕션은 더 관대한 실패율
+    slow-call-rate-threshold: 80
+    slow-call-duration-threshold-ms: 2000
+    wait-duration-in-open-state-ms: 10000
+    permitted-calls-in-half-open-state: 10
+    minimum-number-of-calls: 20
+    sliding-window-size: 100

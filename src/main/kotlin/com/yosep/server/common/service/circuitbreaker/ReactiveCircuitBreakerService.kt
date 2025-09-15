@@ -12,9 +12,12 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
+import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.reactive.TransactionalOperator
 import org.springframework.transaction.reactive.executeAndAwait
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.core.env.Environment
 
 @Service
 class ReactiveCircuitBreakerService(
@@ -22,11 +25,15 @@ class ReactiveCircuitBreakerService(
     private val coordinator: ReactiveRedisCircuitBreakerEventCoordinator,
     private val circuitBreakerConfigWriteRepository: CircuitBreakerConfigWriteRepository,
     private val masterTx: TransactionalOperator,
+    private val env: Environment,
 ) {
+    @Value("\${feature.auto-init.circuitbreakers:true}")
+    private var autoInit: Boolean = true
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("ReactiveCircuitBreakerService"))
 
     @EventListener(ApplicationReadyEvent::class)
     fun init() {
+        if (!autoInit || env.activeProfiles.contains("test")) return
         scope.launch {
             // 1) 모두 등록
             val list = initializeCircuitBreakers()
@@ -54,9 +61,21 @@ class ReactiveCircuitBreakerService(
             for (orgCode in orgCodes) {
                 val breakerName = "$orgCode-mydata"
                 val existing = circuitBreakerConfigWriteRepository.findByBreakerName(breakerName)
-                val entity = existing ?: circuitBreakerConfigWriteRepository.save(
-                    CircuitBreakerConfigEntityGenerator.defaultConfig(breakerName)
-                )
+                val entity = if (existing != null) {
+                    existing
+                } else {
+                    try {
+                        circuitBreakerConfigWriteRepository.save(
+                            CircuitBreakerConfigEntityGenerator.defaultConfig(breakerName)
+                        )
+                    } catch (e: Exception) {
+                        if (e is DuplicateKeyException) {
+                            // 동시성 또는 선행 초기화로 인해 이미 생성된 경우: 재조회 또는 스킵
+                            circuitBreakerConfigWriteRepository.findByBreakerName(breakerName)
+                                ?: continue
+                        } else throw e
+                    }
+                }
                 result += entity
             }
 

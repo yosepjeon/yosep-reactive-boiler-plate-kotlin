@@ -71,3 +71,7 @@ auto:
   create:
     topics:
       ena: true
+
+feature:
+  auto-init:
+    circuitbreakers: false

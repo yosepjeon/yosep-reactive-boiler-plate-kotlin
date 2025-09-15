@@ -98,12 +98,25 @@ ratelimit:
     threshold-ms: 500       # latency 임계
     n-threshold: 3          # 연속 초과 n회
     md: 0.5                 # 감속 비율
+  local:
+    enabled: false          # Redis 장애 시 로컬 기반 rate limiting 사용
+    window-ms: 1000         # sliding window 크기 (ms)
+    latency-threshold-ms: 500
+    sync-interval-ms: 1000  # DB 동기화 주기
+    enable-sync: true       # DB 동기화 활성화
+    min-per-node: 1         # 노드당 최소 허용량
+    node-count-cache-ms: 5000  # 노드 수 캐시 시간
     counter-ttl-sec: 60     # 카운터 TTL
 
 cb:
   k8s:
     namespace: default
-    serviceName: cb-app
+    service-name: cb-app
+    # prd 프로파일에서만 사용되는 설정
+    # master-url: https://kubernetes.default.svc  # K8s API 서버 URL (클러스터 내부면 비워둠)
+    trust-certs: true
+    connection-timeout: 10000
+    request-timeout: 10000
   broadcast:
     path: /internal/cb/apply
     portName: http

@@ -8,9 +8,10 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.reactor.awaitSingleOrNull
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
@@ -70,7 +71,8 @@ class CircuitBreakerPermissionIntegrationTest @Autowired constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `CLOSED state allows permission`() = runTest {
+    @DisplayName("CLOSED 상태에서 허가 허용")
+    fun `CLOSED state allows permission`() = runBlocking {
         val name = "CB_PERM_CLOSED_${System.nanoTime()}"
         registerAndBootstrap(name)
 
@@ -85,12 +87,15 @@ class CircuitBreakerPermissionIntegrationTest @Autowired constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `OPEN state denies permission`() = runTest {
+    @DisplayName("OPEN 상태에서 허가 거부")
+    fun `OPEN state denies permission`() = runBlocking {
         val name = "CB_PERM_OPEN_${System.nanoTime()}"
         registerAndBootstrap(name)
 
         // CLOSED -> OPEN
-        coordinator.proposeTransitionSuspend(name, from = "CLOSED", to = "OPEN")
+        val proposeTransitionSuspendResult = coordinator.proposeTransitionSuspend(name, from = "CLOSED", to = "OPEN")
+        println("proposeTransitionSuspendResult: $proposeTransitionSuspendResult")
+        assertEquals(true, proposeTransitionSuspendResult)
         coordinator.syncFromRedisOncePublic(name)
 
         val cb = cbRegistry.circuitBreaker(name)
@@ -101,7 +106,8 @@ class CircuitBreakerPermissionIntegrationTest @Autowired constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `HALF_OPEN permits only one concurrent call`() = runTest {
+    @DisplayName("HALF_OPEN 상태에서 동시에 하나의 호출만 허용")
+    fun `HALF_OPEN permits only one concurrent call`() = runBlocking {
         val name = "CB_PERM_HALF_${System.nanoTime()}"
         registerAndBootstrap(name)
 

@@ -10,13 +10,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
 import org.assertj.core.api.BDDAssertions.then
-import org.mockito.BDDMockito.*
-import org.mockito.Mock
-import org.mockito.junit.jupiter.MockitoExtension
-import org.mockito.junit.jupiter.MockitoSettings
-import org.mockito.quality.Strictness
+import io.mockk.*
 import org.springframework.boot.DefaultApplicationArguments
 import org.springframework.kafka.core.reactive.ReactiveKafkaConsumerTemplate
 import org.springframework.kafka.support.Acknowledgment
@@ -24,25 +19,14 @@ import reactor.core.publisher.Flux
 import reactor.kafka.receiver.ReceiverOffset
 import reactor.kafka.receiver.ReceiverRecord
 
-@ExtendWith(MockitoExtension::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 @DisplayName("KafkaTestListener1 BDD 테스트")
-@MockitoSettings(strictness = Strictness.LENIENT)
 class KafkaTestListener1BDDTest {
 
-    @Mock
     private lateinit var test1ConsumerTemplate: ReactiveKafkaConsumerTemplate<String, ByteArray>
-
-    @Mock
     private lateinit var kafkaTopicConfig: KafkaTopicConfig
-
-    @Mock
     private lateinit var receiverRecord: ReceiverRecord<String, ByteArray>
-
-    @Mock
     private lateinit var receiverOffset: ReceiverOffset
-
-    @Mock
     private lateinit var acknowledgment: Acknowledgment
 
     private lateinit var yosepDataParser: YosepDataParser
@@ -51,6 +35,12 @@ class KafkaTestListener1BDDTest {
     @BeforeEach
     fun setUp() {
         // Given
+        test1ConsumerTemplate = mockk(relaxed = true)
+        kafkaTopicConfig = mockk(relaxed = true)
+        receiverRecord = mockk(relaxed = true)
+        receiverOffset = mockk(relaxed = true)
+        acknowledgment = mockk(relaxed = true)
+        
         val objectMapper = ObjectMapper().apply {
             findAndRegisterModules()
         }
@@ -152,10 +142,10 @@ class KafkaTestListener1BDDTest {
         )
         val messageBytes = yosepDataParser.parseToBytes(commonMessage)
 
-        given(receiverRecord.value()).willReturn(messageBytes)
-        given(receiverRecord.receiverOffset()).willReturn(receiverOffset)
-        willDoNothing().given(receiverOffset).acknowledge()
-        given(test1ConsumerTemplate.receive()).willReturn(Flux.just(receiverRecord))
+        every { receiverRecord.value() } returns messageBytes
+        every { receiverRecord.receiverOffset() } returns receiverOffset
+        every { receiverOffset.acknowledge() } just Runs
+        every { test1ConsumerTemplate.receive() } returns Flux.just(receiverRecord)
 
         // When
         // consumeCreditIncreaseRequests는 private이므로 직접 테스트할 수 없지만

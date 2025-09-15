@@ -9,20 +9,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.mockito.Mock
-import org.mockito.junit.jupiter.MockitoExtension
+import io.mockk.mockk
 import org.springframework.kafka.core.reactive.ReactiveKafkaConsumerTemplate
 import kotlin.test.assertNotNull
 
-@ExtendWith(MockitoExtension::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class KafkaTestListener1Test {
 
-    @Mock
     private lateinit var test1ConsumerTemplate: ReactiveKafkaConsumerTemplate<String, ByteArray>
-
-    @Mock
     private lateinit var kafkaTopicConfig: KafkaTopicConfig
 
     private lateinit var yosepDataParser: YosepDataParser
@@ -30,6 +24,9 @@ class KafkaTestListener1Test {
 
     @BeforeEach
     fun setUp() {
+        test1ConsumerTemplate = mockk(relaxed = true)
+        kafkaTopicConfig = mockk(relaxed = true)
+        
         val objectMapper = ObjectMapper().apply {
             findAndRegisterModules()
         }

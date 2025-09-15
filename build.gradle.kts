@@ -84,8 +84,12 @@ extra["springCloudVersion"] = "2023.0.1"
 	runtimeOnly("io.asyncer:r2dbc-mysql")
 	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	implementation("io.mockk:mockk:1.13.8")
+	// Kubernetes Client
+	implementation("io.fabric8:kubernetes-client:6.9.2")
 	// Mock HTTP server for integration tests using WebClient
 	testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+	testImplementation("io.fabric8:kubernetes-server-mock:6.9.2")
 	testImplementation("org.springframework.boot:spring-boot-testcontainers")
 	testImplementation("io.projectreactor:reactor-test")
 	testImplementation("io.rest-assured:spring-web-test-client")
