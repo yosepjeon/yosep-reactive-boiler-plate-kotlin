@@ -20,7 +20,7 @@ import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.containers.MongoDBContainer
 import org.testcontainers.containers.MySQLContainer
-import org.testcontainers.elasticsearch.ElasticsearchContainer
+//import org.testcontainers.elasticsearch.ElasticsearchContainer
 import org.testcontainers.lifecycle.Startables
 import org.testcontainers.utility.DockerImageName
 import org.testcontainers.containers.wait.strategy.Wait
@@ -124,12 +124,12 @@ abstract class AbstractIntegrationContainerBase {
             withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
         }
 
-        private val es = ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:7.17.10").apply {
-            withEnv("xpack.security.enabled", "false")
-            withEnv("discovery.type", "single-node")
-            waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
-            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
-        }
+//        private val es = ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:7.17.10").apply {
+//            withEnv("xpack.security.enabled", "false")
+//            withEnv("discovery.type", "single-node")
+//            waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)))
+//            withReuse(true) // 테스트 클래스 간 성능 향상을 위해 재사용 활성화
+//        }
 
         private val kafka = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0")).apply {
             // Testcontainers용 단일 브로커 (bootstrapServers 제공)
@@ -157,7 +157,7 @@ abstract class AbstractIntegrationContainerBase {
                     Startables.deepStart(listOf(redis, mysql)).join()
                     // 선택 컨테이너(있으면 사용)
                     try { mongo.start() } catch (_: Exception) {}
-                    try { es.start() } catch (_: Exception) {}
+//                    try { es.start() } catch (_: Exception) {}
                     try { kafka.start() } catch (_: Exception) {}
                     // 컨테이너가 모두 시작되면 즉시 Flyway 마이그레이션 실행 (스키마 보장)
                     runFlywayMigrations()
@@ -201,10 +201,10 @@ abstract class AbstractIntegrationContainerBase {
                     println("[DEBUG_LOG] Kafka container stopped")
                 }
 
-                if (es.isRunning) {
-                    es.stop()
-                    println("[DEBUG_LOG] Elasticsearch container stopped")
-                }
+//                if (es.isRunning) {
+//                    es.stop()
+//                    println("[DEBUG_LOG] Elasticsearch container stopped")
+//                }
 
                 println("[DEBUG_LOG] All containers stopped successfully")
             } catch (e: Exception) {
@@ -270,9 +270,9 @@ abstract class AbstractIntegrationContainerBase {
             }
 
             // Elasticsearch (선택)
-            if (es.isRunning) {
-                reg.add("spring.elasticsearch.uris") { "http://${es.host}:${es.getMappedPort(9200)}" }
-            }
+//            if (es.isRunning) {
+//                reg.add("spring.elasticsearch.uris") { "http://${es.host}:${es.getMappedPort(9200)}" }
+//            }
 
             // Kafka (선택)
             if (kafka.isRunning) {

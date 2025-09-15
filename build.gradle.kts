@@ -30,7 +30,7 @@ extra["springCloudVersion"] = "2023.0.1"
 		// JSONObject used in ApiExecutor is in configuration-processor jar
 		testImplementation("org.springframework.boot:spring-boot-configuration-processor")
 	// elastic search
-	implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
+//	implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
 
 	// mongo
 	implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
@@ -97,7 +97,7 @@ extra["springCloudVersion"] = "2023.0.1"
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
 	testImplementation("org.springframework.cloud:spring-cloud-starter-contract-stub-runner")
 	testImplementation("org.springframework.cloud:spring-cloud-starter-contract-verifier")
-	testImplementation("org.testcontainers:elasticsearch")
+//	testImplementation("org.testcontainers:elasticsearch")
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:mongodb")
 	testImplementation("org.testcontainers:mysql")
