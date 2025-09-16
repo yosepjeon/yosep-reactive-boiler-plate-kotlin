@@ -125,3 +125,16 @@ cb:
     peers:
       - http://localhost:20000
       - http://localhost:20001
+
+# Wait Queue Configuration
+waitqueue:
+  enabled: true
+  transition-interval-ms: 1000  # 대기열 전환 주기 (1초)
+  initial-batch-size: 100        # 초기 배치 크기
+  max-batch-size: 500            # 최대 배치 크기
+  max-enter-queue-size: 10000    # 입장열 최대 크기
+  enter-queue-ttl-seconds: 3600  # 입장열 유효 시간 (1시간)
+  backpressure-threshold: 0.8    # 배압 임계값
+  monitored-circuit-breakers:    # 모니터링할 Circuit Breaker 목록
+    - "default-mydata"
+    - "api-mydata"
