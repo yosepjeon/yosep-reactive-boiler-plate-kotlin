@@ -84,7 +84,7 @@ class LocalRateLimitSyncScheduler(
                 
                 val lastLimit = lastSyncedLimits[orgId]
                 if (lastLimit != perNodeLimit) {
-                    runBlocking { updateLocalRateLimit(orgId, perNodeLimit) }
+                    updateLocalRateLimit(orgId, perNodeLimit)
                     lastSyncedLimits[orgId] = perNodeLimit
                     syncedCount++
                 }

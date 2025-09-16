@@ -2,9 +2,10 @@ package com.yosep.server.common.component.ratelimit.local
 
 import com.yosep.server.infrastructure.db.common.entity.OrgRateLimitConfigEntity
 import com.yosep.server.infrastructure.db.common.write.repository.OrgRateLimitConfigWriteRepository
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
@@ -74,10 +75,10 @@ class LocalAimdRateCoordinator(
     ): Int {
         val mutex = mutexMap.computeIfAbsent(org) { Mutex() }
         return mutex.withLock {
-            val state = rateLimits.computeIfAbsent(org) {
-                val orgConfig: OrgRateLimitConfigEntity? = runBlocking { orgRateLimitConfigRepository.findById(org) }
-                val defaultQps = (orgConfig?.initialQps ?: 10_000)
-                RateState(currentLimit = defaultQps)
+            val state = rateLimits[org] ?: run {
+                val orgConfig = withContext(Dispatchers.IO) { orgRateLimitConfigRepository.findById(org) }
+                val defaultQps = orgConfig?.initialQps ?: 10_000
+                RateState(currentLimit = defaultQps).also { rateLimits[org] = it }
             }
 
             if (latencyMs > thresholdMs) {
@@ -109,10 +110,10 @@ class LocalAimdRateCoordinator(
     ): Int {
         val mutex = mutexMap.computeIfAbsent(org) { Mutex() }
         return mutex.withLock {
-            val state = rateLimits.computeIfAbsent(org) {
-                val orgConfig: OrgRateLimitConfigEntity? = runBlocking { orgRateLimitConfigRepository.findById(org) }
-                val defaultQps = (orgConfig?.initialQps ?: 10_000)
-                RateState(currentLimit = defaultQps)
+            val state = rateLimits[org] ?: run {
+                val orgConfig = withContext(Dispatchers.IO) { orgRateLimitConfigRepository.findById(org) }
+                val defaultQps = orgConfig?.initialQps ?: 10_000
+                RateState(currentLimit = defaultQps).also { rateLimits[org] = it }
             }
 
             reportLatencyBasedFailure(state, org, md)
