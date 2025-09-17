@@ -104,6 +104,8 @@ extra["springCloudVersion"] = "2023.0.1"
 	testImplementation("org.testcontainers:r2dbc")
 	testImplementation("org.testcontainers:kafka")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	// For performance benchmarking with latency histograms
+	testImplementation("org.hdrhistogram:HdrHistogram:2.1.12")
 }
 
 dependencyManagement {
