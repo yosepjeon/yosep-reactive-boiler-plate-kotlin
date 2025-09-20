@@ -3,7 +3,9 @@ package com.yosep.server.common.component.waitqueue
 import com.yosep.server.common.AbstractIntegrationContainerBase
 import com.yosep.server.common.service.waitqueue.WaitQueueService
 import com.yosep.server.infrastructure.redis.component.RedisCommandHelper
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
 import org.springframework.beans.factory.annotation.Autowired
@@ -109,12 +111,23 @@ class WaitQueueServiceIntegrationTest @Autowired constructor(
 
     @Test
     @DisplayName("대기열에서 입장열로 올바르게 전환된다")
-    fun `users transition from wait queue to enter queue`() = runBlocking {
+    fun `users transition from wait queue to enter queue`() = runTest {
         // Given
         val users = (1..10).map { "user$it" }
         users.forEach { waitQueueService.joinWaitQueue(it) }
 
-        val initialMetrics = waitQueueService.getQueueMetrics()
+        // Wait for all users to be added to queue
+        delay(100)
+
+        // Verify all users are in wait queue with retry
+        var initialMetrics = waitQueueService.getQueueMetrics()
+        var retryCount = 0
+        while (initialMetrics.waitQueueSize < 10 && retryCount < 5) {
+            delay(50)
+            initialMetrics = waitQueueService.getQueueMetrics()
+            retryCount++
+        }
+
         assertThat(initialMetrics.waitQueueSize).isEqualTo(10)
 
         // When
