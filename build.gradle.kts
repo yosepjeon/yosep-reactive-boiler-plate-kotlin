@@ -55,7 +55,7 @@ extra["springCloudVersion"] = "2023.0.1"
 
 	implementation("org.springframework.boot:spring-boot-starter-rsocket")
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
-	implementation("org.springframework.security:spring-security-messaging")
+//	implementation("org.springframework.security:spring-security-messaging")
 //	implementation("org.springframework.security:spring-security-rsocket")
 	implementation("org.springframework.boot:spring-boot-starter-hateoas")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
@@ -77,7 +77,7 @@ extra["springCloudVersion"] = "2023.0.1"
 
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
-	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
+	implementation("org.springframework.boot:spring-boot-docker-compose")
 	annotationProcessor("org.projectlombok:lombok")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	runtimeOnly("com.mysql:mysql-connector-j")
