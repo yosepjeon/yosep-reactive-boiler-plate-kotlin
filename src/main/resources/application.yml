@@ -1,6 +1,10 @@
 application.name: yosep-reactive-boiler-plate-kotlin-server
 
 server:
+  http2:
+    enabled: true          # 부트 플래그(네티 커스터마이저가 실질 제어)
+  compression:
+    enabled: false         # SSE엔 보통 비권장(버퍼링으로 지연↑). 일반 HTTP만 쓰면 true
   shutdown: graceful
   port: 20000
   logging:
@@ -138,3 +142,8 @@ waitqueue:
   monitored-circuit-breakers:    # 모니터링할 Circuit Breaker 목록
     - "default-mydata"
     - "api-mydata"
+
+mydata:
+  proxy:
+    uri: http://localhost
+    port: 30915/mydata-mockup/mydata
