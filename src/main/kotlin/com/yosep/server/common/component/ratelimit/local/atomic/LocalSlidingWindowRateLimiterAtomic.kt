@@ -3,154 +3,282 @@ package com.yosep.server.common.component.ratelimit.local.atomic
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicLongArray
 
 /**
- * Lock-free version of LocalSlidingWindowRateLimiter using AtomicReference with CAS operations
+ * 슬라이딩 윈도우 카운터 알고리즘 기반 Rate Limiter (Lock-free)
+ *
+ * 알고리즘:
+ * 1. 시간을 작은 버킷(예: 100ms)으로 나눔
+ * 2. 각 버킷에 요청 수를 기록
+ * 3. 현재 시점 기준 과거 windowMs 내의 버킷들의 합계 계산
+ * 4. 오래된 버킷은 자동으로 무효화됨
  *
  * 장점:
- * 1. Lock-free: 스레드 블로킹 없이 높은 처리량 달성
- * 2. 낮은 지연시간: 락 대기 시간이 없어 응답 속도 향상
- * 3. Deadlock-free: 데드락 발생 가능성 완전 제거
- * 4. Fair scheduling: 모든 스레드가 공평하게 진행
+ * - 정확한 슬라이딩 윈도우 구현
+ * - Lock-free로 높은 동시성 성능
+ * - 메모리 효율적 (순환 버퍼 사용)
+ * - 버스트 트래픽 정확히 제한
  *
- * 단점:
- * 1. CPU 사용량 증가: 실패 시 재시도로 인한 busy-waiting
- * 2. 복잡도 증가: 코드 이해와 디버깅이 더 어려움
- * 3. ABA 문제 가능성: timestamp로 완화하지만 완전 해결은 어려움
- * 4. 높은 경쟁 상황에서 성능 저하: 재시도가 많아질 수 있음
+ * 구현 특징:
+ * - AtomicLongArray로 버킷별 카운터 관리
+ * - CAS 연산으로 동시성 제어
+ * - 시간 기반 자동 버킷 순환
  */
 @Component
 class LocalSlidingWindowRateLimiterAtomic {
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val windowStates = ConcurrentHashMap<String, AtomicReference<WindowState>>()
 
-    data class WindowState(
-        val windowStart: Long,
-        val count: Int,
-        val version: Long = System.nanoTime() // ABA 문제 방지용 버전
-    )
-
-    /**
-     * Rate limit 획득 시도 - CAS 기반 lock-free 구현
-     * 실패 시 성공할 때까지 재시도
-     */
-    suspend fun tryAcquire(key: String, maxCount: Int, windowMs: Long): Boolean {
-        val stateRef = windowStates.computeIfAbsent(key) {
-            AtomicReference(WindowState(System.currentTimeMillis(), 0))
-        }
-
-        var attempts = 0
-        val maxAttempts = 100 // 무한 루프 방지
-
-        while (attempts < maxAttempts) {
-            attempts++
-
-            val currentTime = System.currentTimeMillis()
-            val currentState = stateRef.get()
-
-            // 윈도우 경계 체크
-            val elapsedTime = currentTime - currentState.windowStart
-
-            val newState = if (elapsedTime >= windowMs) {
-                // 새 윈도우 시작
-                WindowState(currentTime, 1)
-            } else {
-                // 현재 윈도우 내에서 카운트 체크
-                if (currentState.count >= maxCount) {
-                    // 한도 초과
-                    if (logger.isDebugEnabled) {
-                        logger.debug("[Atomic] Rate limit exceeded for key: {}, count: {}/{}",
-                            key, currentState.count, maxCount)
-                    }
-                    return false
-                }
-                // 카운트 증가
-                WindowState(
-                    currentState.windowStart,
-                    currentState.count + 1,
-                    System.nanoTime()
-                )
-            }
-
-            // CAS 연산 시도
-            if (stateRef.compareAndSet(currentState, newState)) {
-                if (logger.isDebugEnabled) {
-                    logger.debug("[Atomic] Acquired permit for key: {} (attempts: {}), count: {}/{}",
-                        key, attempts, newState.count, maxCount)
-                }
-                return true
-            }
-
-            // CAS 실패 시 짧은 백오프
-            if (attempts > 10) {
-                // 경쟁이 심한 경우 짧은 대기
-                Thread.yield()
-            }
-        }
-
-        logger.warn("[Atomic] Failed to acquire permit after {} attempts for key: {}", maxAttempts, key)
-        return false
+    companion object {
+        // 버킷 크기 (밀리초). 작을수록 정확하지만 메모리 사용량 증가
+        const val BUCKET_SIZE_MS = 100L
+        // 최대 윈도우 크기 (60초 = 1분)
+        const val MAX_WINDOW_MS = 60000L
+        // 버킷 개수 (600개 = 60초 / 100ms)
+        const val NUM_BUCKETS = (MAX_WINDOW_MS / BUCKET_SIZE_MS).toInt()
     }
 
     /**
-     * 현재 사용량 조회 - lock-free read
+     * 슬라이딩 윈도우 상태
+     * - buckets: 각 시간 버킷의 카운터 (순환 버퍼)
+     * - lastUpdateTime: 마지막 업데이트 시간 (버킷 순환용)
      */
-    fun getCurrentUsage(key: String): Int {
-        val stateRef = windowStates[key] ?: return 0
-        val state = stateRef.get()
+    private class SlidingWindow {
+        val buckets = AtomicLongArray(NUM_BUCKETS)
+        @Volatile
+        var lastUpdateTime = System.currentTimeMillis()
+
+        /**
+         * 현재 시간의 버킷 인덱스 계산
+         */
+        private fun getBucketIndex(timeMs: Long): Int {
+            return ((timeMs / BUCKET_SIZE_MS) % NUM_BUCKETS).toInt()
+        }
+
+        /**
+         * 오래된 버킷 정리 (순환)
+         */
+        fun cleanOldBuckets(currentTime: Long) {
+            val elapsed = currentTime - lastUpdateTime
+            if (elapsed >= BUCKET_SIZE_MS) {
+                val bucketsToClean = minOf((elapsed / BUCKET_SIZE_MS).toInt(), NUM_BUCKETS)
+                val startIdx = getBucketIndex(lastUpdateTime + BUCKET_SIZE_MS)
+
+                for (i in 0 until bucketsToClean) {
+                    val idx = (startIdx + i) % NUM_BUCKETS
+                    buckets.set(idx, 0)
+                }
+
+                lastUpdateTime = currentTime - (currentTime % BUCKET_SIZE_MS)
+            }
+        }
+
+        /**
+         * 요청 기록 (원자적 증가)
+         */
+        fun recordRequest(currentTime: Long): Long {
+            cleanOldBuckets(currentTime)
+            val idx = getBucketIndex(currentTime)
+            return buckets.incrementAndGet(idx)
+        }
+
+        /**
+         * 윈도우 내 총 요청 수 계산
+         */
+        fun getCount(currentTime: Long, windowMs: Long): Long {
+            cleanOldBuckets(currentTime)
+
+            val windowBuckets = minOf((windowMs / BUCKET_SIZE_MS).toInt(), NUM_BUCKETS)
+            val endIdx = getBucketIndex(currentTime)
+            var total = 0L
+
+            for (i in 0 until windowBuckets) {
+                val idx = (endIdx - i + NUM_BUCKETS) % NUM_BUCKETS
+                val bucketTime = currentTime - (i * BUCKET_SIZE_MS)
+
+                // 버킷이 윈도우 내에 있는지 확인
+                if (currentTime - bucketTime <= windowMs) {
+                    total += buckets.get(idx)
+                }
+            }
+
+            return total
+        }
+
+        /**
+         * 부분 윈도우 계산 (더 정확한 슬라이딩)
+         * 현재 버킷과 윈도우 시작 버킷의 부분 카운트 포함
+         */
+        fun getPreciseCount(currentTime: Long, windowMs: Long): Double {
+            cleanOldBuckets(currentTime)
+
+            val windowStart = currentTime - windowMs
+            val endBucket = getBucketIndex(currentTime)
+
+            var total = 0.0
+            val windowBuckets = minOf((windowMs / BUCKET_SIZE_MS + 1).toInt(), NUM_BUCKETS)
+
+            for (i in 0 until windowBuckets) {
+                val idx = (endBucket - i + NUM_BUCKETS) % NUM_BUCKETS
+                val bucketStartTime = (currentTime / BUCKET_SIZE_MS - i) * BUCKET_SIZE_MS
+                val bucketEndTime = bucketStartTime + BUCKET_SIZE_MS
+
+                if (bucketEndTime < windowStart) break
+
+                val count = buckets.get(idx).toDouble()
+
+                // 부분 버킷 처리
+                if (bucketStartTime < windowStart) {
+                    // 윈도우 시작 부분
+                    val fraction = (bucketEndTime - windowStart) / BUCKET_SIZE_MS.toDouble()
+                    total += count * fraction
+                } else if (bucketEndTime > currentTime) {
+                    // 현재 시간 부분 (일반적으로 발생하지 않음)
+                    val fraction = (currentTime - bucketStartTime) / BUCKET_SIZE_MS.toDouble()
+                    total += count * fraction
+                } else {
+                    // 완전한 버킷
+                    total += count
+                }
+            }
+
+            return total
+        }
+
+        /**
+         * 리셋
+         */
+        fun reset() {
+            for (i in 0 until NUM_BUCKETS) {
+                buckets.set(i, 0)
+            }
+            lastUpdateTime = System.currentTimeMillis()
+        }
+    }
+
+    // 각 키별 슬라이딩 윈도우
+    private val windows = ConcurrentHashMap<String, SlidingWindow>()
+
+    /**
+     * Rate limit 체크 및 획득
+     * @param key 제한 키
+     * @param maxCount 윈도우 내 최대 허용 요청 수
+     * @param windowMs 윈도우 크기 (밀리초)
+     * @param usePrecise 정확한 부분 윈도우 계산 사용 여부
+     */
+    suspend fun tryAcquire(
+        key: String,
+        maxCount: Int,
+        windowMs: Long,
+        usePrecise: Boolean = false
+    ): Boolean {
+        require(windowMs in BUCKET_SIZE_MS..MAX_WINDOW_MS) {
+            "Window size must be between $BUCKET_SIZE_MS and $MAX_WINDOW_MS ms"
+        }
+
+        val window = windows.computeIfAbsent(key) { SlidingWindow() }
         val currentTime = System.currentTimeMillis()
 
-        // 윈도우가 만료되었으면 0 반환
-        return if (currentTime - state.windowStart >= 1000) {
-            0
+        // 현재 카운트 확인
+        val currentCount = if (usePrecise) {
+            window.getPreciseCount(currentTime, windowMs)
         } else {
-            state.count
+            window.getCount(currentTime, windowMs).toDouble()
         }
+
+        if (currentCount >= maxCount) {
+            if (logger.isDebugEnabled) {
+                logger.debug(
+                    "[SlidingWindow] Rate limit exceeded for key: {}, count: {}/{}",
+                    key, currentCount, maxCount
+                )
+            }
+            return false
+        }
+
+        // 요청 기록
+        window.recordRequest(currentTime)
+
+        if (logger.isDebugEnabled) {
+            logger.debug(
+                "[SlidingWindow] Acquired permit for key: {}, count: {}/{}",
+                key, currentCount + 1, maxCount
+            )
+        }
+
+        return true
     }
 
     /**
-     * 특정 키의 상태 리셋 - CAS 기반
+     * 현재 사용량 조회
+     */
+    fun getCurrentUsage(key: String, windowMs: Long = 1000L): Long {
+        val window = windows[key] ?: return 0
+        return window.getCount(System.currentTimeMillis(), windowMs)
+    }
+
+    /**
+     * 정확한 사용량 조회 (부분 버킷 포함)
+     */
+    fun getPreciseUsage(key: String, windowMs: Long = 1000L): Double {
+        val window = windows[key] ?: return 0.0
+        return window.getPreciseCount(System.currentTimeMillis(), windowMs)
+    }
+
+    /**
+     * 특정 키 리셋
      */
     fun reset(key: String) {
-        val stateRef = windowStates[key] ?: return
-
-        var attempts = 0
-        while (attempts < 10) {
-            attempts++
-            val current = stateRef.get()
-            val newState = WindowState(System.currentTimeMillis(), 0)
-
-            if (stateRef.compareAndSet(current, newState)) {
-                logger.info("[Atomic] Reset rate limiter for key: {} (attempts: {})", key, attempts)
-                return
-            }
-        }
-
-        logger.warn("[Atomic] Failed to reset rate limiter for key: {} after 10 attempts", key)
+        windows[key]?.reset()
+        logger.info("[SlidingWindow] Reset rate limiter for key: {}", key)
     }
 
     /**
      * 모든 상태 클리어
      */
     fun clearAll() {
-        val keys = windowStates.keys.toList()
-        windowStates.clear()
-        logger.info("[Atomic] Cleared all rate limiter states. Keys cleared: {}", keys.size)
+        val keyCount = windows.size
+        windows.clear()
+        logger.info("[SlidingWindow] Cleared all rate limiter states. Keys cleared: {}", keyCount)
     }
 
     /**
      * 통계 정보 조회
      */
     fun getStats(): Map<String, Any> {
-        val activeWindows = windowStates.entries.count { (_, ref) ->
-            val state = ref.get()
-            System.currentTimeMillis() - state.windowStart < 1000
+        val currentTime = System.currentTimeMillis()
+        val activeWindows = windows.entries.count { (_, window) ->
+            window.getCount(currentTime, 1000L) > 0
+        }
+
+        val totalRequests = windows.values.sumOf { window ->
+            window.getCount(currentTime, MAX_WINDOW_MS)
         }
 
         return mapOf(
-            "totalKeys" to windowStates.size,
-            "activeWindows" to activeWindows
+            "totalKeys" to windows.size,
+            "activeWindows" to activeWindows,
+            "totalRequests" to totalRequests,
+            "bucketSizeMs" to BUCKET_SIZE_MS,
+            "numBuckets" to NUM_BUCKETS,
+            "maxWindowMs" to MAX_WINDOW_MS
+        )
+    }
+
+    /**
+     * 상세 통계 (디버깅용)
+     */
+    fun getDetailedStats(key: String, windowMs: Long = 1000L): Map<String, Any>? {
+        val window = windows[key] ?: return null
+        val currentTime = System.currentTimeMillis()
+
+        return mapOf(
+            "key" to key,
+            "currentCount" to window.getCount(currentTime, windowMs),
+            "preciseCount" to window.getPreciseCount(currentTime, windowMs),
+            "windowMs" to windowMs,
+            "lastUpdateTime" to window.lastUpdateTime,
+            "timeSinceLastUpdate" to (currentTime - window.lastUpdateTime)
         )
     }
 }

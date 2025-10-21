@@ -126,16 +126,15 @@ class LocalAimdRateCoordinator(
         md: Double = defaultMd
     ): Int {
         val now = System.currentTimeMillis()
-        
+
         if (now - state.lastFailureTime > 60_000) {
             state.failureCount = 0
         }
-        
+
         state.failureCount++
         state.lastFailureTime = now
 
         if (state.failureCount >= defaultNThreshold) {
-            val beforeLimit = state.currentLimit
             state.currentLimit = max(minLimit, (state.currentLimit * md).toInt())
             
             state.isInSlowStart = true

@@ -90,6 +90,35 @@ class SseParallelController(
             )
         )
 
+//        val sampleRequest = ParallelTaskRequest(
+//            tasks = listOf(
+//                TaskConfig(
+//                    id = "task1",
+//                    name = "Get User Data",
+//                    url = "http://localhost:20001//api/sse-proxy/test/1",
+//                    timeoutMs = 5000
+//                ),
+//                TaskConfig(
+//                    id = "task2",
+//                    name = "Get Posts",
+//                    url = "http://localhost:20001//api/sse-proxy/test/2",
+//                    timeoutMs = 5000
+//                ),
+//                TaskConfig(
+//                    id = "task3",
+//                    name = "Get Comments",
+//                    url = "http://localhost:20001//api/sse-proxy/test/3",
+//                    timeoutMs = 5000
+//                ),
+//                TaskConfig(
+//                    id = "task4",
+//                    name = "Get Albums",
+//                    url = "http://localhost:20001//api/sse-proxy/test/4",
+//                    timeoutMs = 5000
+//                )
+//            )
+//        )
+
         return parallelApiService.executeParallelTasksWithProgress(sampleRequest)
             .map { event ->
                 ServerSentEvent.builder<SseEvent>()

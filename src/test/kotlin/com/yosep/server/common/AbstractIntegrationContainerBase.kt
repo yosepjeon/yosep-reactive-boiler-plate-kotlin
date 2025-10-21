@@ -1,5 +1,6 @@
 package com.yosep.server.common
 
+//import org.testcontainers.elasticsearch.ElasticsearchContainer
 import com.yosep.server.infrastructure.db.common.write.repository.CircuitBreakerConfigWriteRepository
 import com.yosep.server.infrastructure.db.common.write.repository.OrgInfoWriteRepository
 import com.yosep.server.infrastructure.db.common.write.repository.OrgRateLimitConfigWriteRepository
@@ -7,9 +8,10 @@ import com.yosep.server.infrastructure.db.common.write.repository.WebClientConfi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import kotlinx.coroutines.runBlocking
+import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Assumptions
+import org.junit.jupiter.api.BeforeAll
 import org.redisson.api.RedissonReactiveClient
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.r2dbc.core.DatabaseClient
@@ -20,12 +22,10 @@ import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.containers.MongoDBContainer
 import org.testcontainers.containers.MySQLContainer
-//import org.testcontainers.elasticsearch.ElasticsearchContainer
+import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.lifecycle.Startables
 import org.testcontainers.utility.DockerImageName
-import org.testcontainers.containers.wait.strategy.Wait
 import java.time.Duration
-import org.flywaydb.core.Flyway
 
 abstract class AbstractIntegrationContainerBase {
 
@@ -223,6 +223,8 @@ abstract class AbstractIntegrationContainerBase {
                     .dataSource(jdbcUrl, user, pass)
                     .locations("classpath:db/migration")
                     .baselineOnMigrate(true)
+                    .validateOnMigrate(false)
+                    .cleanOnValidationError(true)
                     .load()
                 flyway.migrate()
                 println("[DEBUG_LOG] Flyway migration completed successfully")

@@ -122,7 +122,7 @@ class ParallelApiService {
 
         return specWithBody
             .retrieve()
-            .bodyToMono(Map::class.java)
+            .bodyToMono(Any::class.java)
             .timeout(Duration.ofMillis(task.timeoutMs))
             .retry(task.retryCount.toLong())
             .map { it as Any }

@@ -7,17 +7,22 @@ import com.yosep.server.infrastructure.db.common.write.repository.CircuitBreaker
 import com.yosep.server.infrastructure.db.common.write.repository.OrgInfoWriteRepository
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import jakarta.annotation.PreDestroy
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.reactor.awaitSingleOrNull
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
+import org.springframework.core.env.Environment
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.reactive.TransactionalOperator
 import org.springframework.transaction.reactive.executeAndAwait
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.core.env.Environment
 
 @Service
 class ReactiveCircuitBreakerService(
@@ -36,7 +41,7 @@ class ReactiveCircuitBreakerService(
         if (!autoInit || env.activeProfiles.contains("test")) return
         scope.launch {
             // 1) 모두 등록
-            val list = initializeCircuitBreakers()
+            initializeCircuitBreakers()
             // 2) 부팅 직후 1회 강제 동기화 (Pub/Sub 이벤트가 없더라도 즉시 동기화됨)
             runCatching { coordinator.initialSyncAllOnce() }
                 .onFailure { /* 부팅시 오류는 로그로만 */ }

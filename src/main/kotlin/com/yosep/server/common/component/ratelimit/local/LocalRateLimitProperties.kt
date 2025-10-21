@@ -25,6 +25,15 @@ class LocalRateLimitProperties {
     // Atomic version specific
     var atomic: AtomicProperties = AtomicProperties()
 
+    var targetP99Ms: Long = 500        // 목표 p99
+    var addStep: Int = 50              // 정상 시 증가폭
+    var decreaseFactor: Double = 0.7   // 초과 시 감소 계수
+    var reservoirSize: Int = 4096
+    var ewmaTauMs: Long = 3000         // EWMA 시간상수(τ), 3s 권장
+    var hysteresisMs: Long = 30        // 히스테리시스 완충(±30ms 구간에서는 limit 고정)
+    var minSamplesForP99: Int = 64     // p99 계산 최소 샘플 수
+    var latencyWindowMs: Long = 10_000L
+
     class AtomicProperties {
         var enabled: Boolean = false
     }

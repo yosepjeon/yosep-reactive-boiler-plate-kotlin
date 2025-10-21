@@ -48,6 +48,9 @@ create table org_rate_limit_config
     max_qps           bigint   default 20000             not null,
     min_qps           bigint   default 100               not null,
     latency_threshold int      default 500               not null,
+    increase_rate     float    default 1.1               not null,
+    increase_factor   int      default 5                 not null,
+    decrease_rate     float    default 0.9               not null,
     created_at        datetime default CURRENT_TIMESTAMP null,
     updated_at        datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP
 );

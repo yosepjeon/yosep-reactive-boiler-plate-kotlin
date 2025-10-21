@@ -1,29 +1,35 @@
 package com.yosep.server.common.component.ratelimit.local.atomic
 
+import com.yosep.server.common.component.k8s.MeshTopologyListener
 import com.yosep.server.common.component.ratelimit.local.LocalRateLimitProperties
 import com.yosep.server.infrastructure.db.common.entity.OrgRateLimitConfigEntity
-import kotlinx.coroutines.*
+import io.fabric8.kubernetes.client.KubernetesClient
+import jakarta.annotation.PostConstruct
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Lock-free AIMD Rate Coordinator using AtomicReference
+ * p99(시간 윈도우 기반) AIMD Rate Coordinator
  *
- * CAS 기반 재시도 전략:
- * 1. Optimistic approach: 대부분의 경우 경쟁이 없다고 가정
- * 2. Exponential backoff: 재시도 시 점진적으로 대기 시간 증가
- * 3. Spin-wait with yield: CPU 친화적인 재시도 패턴
- *
- * 성능 특성:
- * - Low contention: mutex 버전보다 2-3배 빠름
- * - High contention: mutex 버전과 비슷하거나 약간 느림
- * - Memory ordering: acquire-release semantics 보장
+ * - 각 org의 최근 latency 샘플을 (latency, tsMs)로 고정 크기 ring buffer에 기록
+ * - 매 주기 p99(최근 windowMs 내 샘플만) 계산해 limit 증감(AIMD)
+ * - onSuccess/onFailure는 latency만 기록(가벼움). 필요 시 외부 tsMs 주입 가능
  */
 @Component
 @ConditionalOnProperty(
@@ -33,283 +39,214 @@ import kotlin.math.min
     matchIfMissing = false
 )
 class LocalAimdRateCoordinatorAtomic(
-    private val properties: LocalRateLimitProperties
-) {
+    val k8s: KubernetesClient,
+    private val properties: LocalRateLimitProperties,
+    @Value("\${mesh.service:finda-mydata-external-server}") private val meshSvc: String,
+    @Value("\${ratelimit.local.atomic.totalTargetQps:0}") private val totalTargetQps: Int,
+): MeshTopologyListener {
+    private val factory = k8s.informers()
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val coordinatorStates = ConcurrentHashMap<String, AtomicReference<CoordinatorState>>()
-    private val lastUpdateTimes = ConcurrentHashMap<String, AtomicLong>()
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    data class CoordinatorState(
-        val limit: Int,
-        val consecutiveSuccesses: Int = 0,
-        val consecutiveFailures: Int = 0,
-        val lastLatency: Long = 0,
-        val ewmaLatency: Double = 0.0,
-        val phase: Phase = Phase.SLOW_START,
-        val version: Long = System.nanoTime() // Version for ABA prevention
-    ) {
-        enum class Phase { SLOW_START, CONGESTION_AVOIDANCE }
+    // ---- Tunables (properties 없을 때 기본값) ----
+    private val maxLimit get() = properties.maxLimit
+    private val minLimit get() = properties.minLimit
+    private val targetP99Ms get() = (properties.targetP99Ms.takeIf { it > 0 } ?: 500L)
+    private val addStep get() = (properties.addStep.takeIf { it > 0 } ?: 50)
+    private val decreaseFactor get() = (properties.decreaseFactor.takeIf { it in 0.0..1.0 } ?: 0.7)
+    private val reservoirSize get() = (properties.reservoirSize.takeIf { it > 0 } ?: 10000)
+    private val latencyWindowMs get() = (properties.latencyWindowMs.takeIf { it > 0 } ?: 1000L) // 기본 1초
+    private val minSamplesForP99 get() = (properties.minSamplesForP99.takeIf { it > 0 } ?: 64)
+
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val coordinatorStates = ConcurrentHashMap<String, AtomicReference<CoordinatorState>>()
+    private val reservoirs = ConcurrentHashMap<String, LatencyReservoir>()
+    private val lastAdjustMs = ConcurrentHashMap<String, AtomicLong>()
+
+    // ready 파드 수 & per-pod cap
+    private val readyPods = AtomicInteger(1)
+    private val perPodCap = AtomicInteger(maxLimit)
+
+    @PostConstruct
+    fun init() {
+        startPeriodicAdjustment(latencyWindowMs)
     }
 
     companion object {
-        const val MAX_RETRY_ATTEMPTS = 50
-        const val RETRY_DELAY_NS = 100 // nanoseconds
-        const val UPDATE_INTERVAL_MS = 1000L
+        const val UPDATE_INTERVAL_MS = 1_000L
     }
 
-    /**
-     * 초기 설정 로드 - lock-free initialization
-     */
+    data class CoordinatorState(
+        val limit: Int,
+        val lastP99: Long = 0L,
+        val version: Long = System.nanoTime()
+    )
+
+    /** 🔸 BRolloutHealthyNotifier가 호출하는 "세팅 메서드" */
+    override fun onReadyEndpointsChanged(service: String, endpoints: Set<String>) {
+        if (service != meshSvc) return
+        val count = max(1, endpoints.size)
+        readyPods.set(count)
+
+        val cap =
+            if (totalTargetQps > 0) max(minLimit, totalTargetQps / count)
+            else maxLimit
+
+        perPodCap.set(cap)
+        logger.info("[AIMD] onReadyEndpointsChanged: service={}, readyPods={}, perPodCap={}", service, count, cap)
+    }
+
+    override fun onRolloutHealthy(rolloutName: String) {
+        logger.info("[AIMD] rollout healthy: {}", rolloutName)
+        // 필요하면 여기서 내부 상태 리셋/로그 남기기 등
+    }
+
+    /** 외부에서 현재 유효 limit을 가져갈 때 cap 적용 (예) */
+//    fun getCurrentLimit(org: String): Int {
+//        val currentRaw = /* 기존 상태에서 raw limit 조회 */ maxLimit
+//        return min(currentRaw, perPodCap.get())
+//    }
+
+    // ---- 초기 설정 로드 ----
     suspend fun initializeFromConfig(configs: List<OrgRateLimitConfigEntity>) {
-        configs.forEach { config ->
-            val initialState = CoordinatorState(
-                limit = config.initialQps,
-                phase = CoordinatorState.Phase.SLOW_START
-            )
-            val orgCode = config.id // id를 org code로 사용
-            coordinatorStates.computeIfAbsent(orgCode) {
-                AtomicReference(initialState)
+        configs.forEach { cfg ->
+            val org = cfg.id
+            coordinatorStates.computeIfAbsent(org) {
+                AtomicReference(CoordinatorState(limit = cfg.initialQps.coerceIn(minLimit, maxLimit)))
             }
-            lastUpdateTimes.computeIfAbsent(orgCode) {
-                AtomicLong(System.currentTimeMillis())
-            }
-            // maxLimit, minLimit을 config에서 가져온 값으로 재설정할 수 있음
-            // properties.maxLimit = config.maxQps
-            // properties.minLimit = config.minQps
+            reservoirs.computeIfAbsent(org) { LatencyReservoir(reservoirSize) }
+            lastAdjustMs.computeIfAbsent(org) { AtomicLong(System.currentTimeMillis()) }
         }
-        logger.info("[Atomic AIMD] Initialized {} organizations from config", configs.size)
-    }
-
-    /**
-     * 성공 처리 - CAS with retry
-     */
-    suspend fun onSuccess(org: String, latency: Long) {
-        updateStateWithRetry(org, MAX_RETRY_ATTEMPTS) { current ->
-            val newEwmaLatency = calculateEwma(current.ewmaLatency, latency.toDouble())
-
-            when (current.phase) {
-                CoordinatorState.Phase.SLOW_START -> {
-                    // Slow Start: 지수 증가
-                    val newLimit = if (latency < properties.failureThresholdMs) {
-                        min(properties.maxLimit, current.limit * 2)
-                    } else {
-                        // 지연시간 초과 시 Congestion Avoidance로 전환
-                        current.limit
-                    }
-
-                    current.copy(
-                        limit = newLimit,
-                        consecutiveSuccesses = current.consecutiveSuccesses + 1,
-                        consecutiveFailures = 0,
-                        lastLatency = latency,
-                        ewmaLatency = newEwmaLatency,
-                        phase = if (latency >= properties.failureThresholdMs) {
-                            CoordinatorState.Phase.CONGESTION_AVOIDANCE
-                        } else {
-                            current.phase
-                        },
-                        version = System.nanoTime()
-                    )
-                }
-
-                CoordinatorState.Phase.CONGESTION_AVOIDANCE -> {
-                    // Congestion Avoidance: 선형 증가
-                    val increment = max(1, (current.limit * 0.1).toInt())
-                    val newLimit = if (latency < properties.failureThresholdMs) {
-                        min(properties.maxLimit, current.limit + increment)
-                    } else {
-                        current.limit
-                    }
-
-                    current.copy(
-                        limit = newLimit,
-                        consecutiveSuccesses = current.consecutiveSuccesses + 1,
-                        consecutiveFailures = 0,
-                        lastLatency = latency,
-                        ewmaLatency = newEwmaLatency,
-                        version = System.nanoTime()
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * 실패 처리 - CAS with retry
-     */
-    suspend fun onFailure(org: String, latency: Long) {
-        updateStateWithRetry(org, MAX_RETRY_ATTEMPTS) { current ->
-            val newEwmaLatency = calculateEwma(current.ewmaLatency, latency.toDouble())
-            val newConsecutiveFailures = current.consecutiveFailures + 1
-
-            // 연속 실패 시 더 aggressive한 감소
-            val reductionFactor = when {
-                newConsecutiveFailures >= 5 -> 0.3
-                newConsecutiveFailures >= 3 -> 0.5
-                else -> properties.failureMd
-            }
-
-            val newLimit = max(properties.minLimit, (current.limit * reductionFactor).toInt())
-
-            current.copy(
-                limit = newLimit,
-                consecutiveSuccesses = 0,
-                consecutiveFailures = newConsecutiveFailures,
-                lastLatency = latency,
-                ewmaLatency = newEwmaLatency,
-                phase = CoordinatorState.Phase.SLOW_START, // 실패 시 Slow Start로 복귀
-                version = System.nanoTime()
-            )
-        }
-    }
-
-    /**
-     * CAS 기반 상태 업데이트 with exponential backoff retry
-     */
-    private suspend fun updateStateWithRetry(
-        org: String,
-        maxAttempts: Int,
-        updateFunction: (CoordinatorState) -> CoordinatorState
-    ): Boolean {
-        val stateRef = coordinatorStates.computeIfAbsent(org) {
-            AtomicReference(CoordinatorState(limit = properties.maxLimit))
-        }
-
-        var attempts = 0
-        var backoffNs = RETRY_DELAY_NS
-
-        while (attempts < maxAttempts) {
-            attempts++
-
-            val current = stateRef.get()
-            val updated = updateFunction(current)
-
-            // 변경이 없으면 바로 성공 반환
-            if (current.limit == updated.limit &&
-                current.phase == updated.phase &&
-                current.consecutiveSuccesses == updated.consecutiveSuccesses &&
-                current.consecutiveFailures == updated.consecutiveFailures) {
-                return true
-            }
-
-            // CAS 시도
-            if (stateRef.compareAndSet(current, updated)) {
-                if (logger.isDebugEnabled) {
-                    logger.debug("[Atomic AIMD] Updated state for {} (attempts: {}): limit {} -> {}, phase: {}",
-                        org, attempts, current.limit, updated.limit, updated.phase)
-                }
-
-                // 마지막 업데이트 시간 기록
-                lastUpdateTimes[org]?.set(System.currentTimeMillis())
-                return true
-            }
-
-            // Exponential backoff with spin-wait
-            if (attempts <= 5) {
-                // 초기 몇 번은 spin-wait
-                repeat(backoffNs) { /* busy wait */ }
-            } else if (attempts <= 10) {
-                // 중간 단계는 yield
-                Thread.yield()
-                backoffNs *= 2
-            } else {
-                // 그 이후는 sleep
-                delay(backoffNs / 1_000_000L) // Convert to milliseconds
-                backoffNs = min(backoffNs * 2, 10_000_000) // Cap at 10ms
-            }
-        }
-
-        logger.warn("[Atomic AIMD] Failed to update state for {} after {} attempts", org, maxAttempts)
-        return false
-    }
-
-    /**
-     * 현재 limit 조회 - lock-free read
-     */
-    fun getCurrentLimit(org: String): Int {
-        return coordinatorStates[org]?.get()?.limit ?: properties.maxLimit
-    }
-
-    /**
-     * 상태 조회 - lock-free read
-     */
-    fun getState(org: String): CoordinatorState? {
-        return coordinatorStates[org]?.get()
-    }
-
-    /**
-     * EWMA (Exponential Weighted Moving Average) 계산
-     */
-    private fun calculateEwma(current: Double, new: Double, alpha: Double = 0.2): Double {
-        return if (current == 0.0) new else alpha * new + (1 - alpha) * current
-    }
-
-    /**
-     * 주기적 조정 작업
-     */
-    fun startPeriodicAdjustment() {
-        scope.launch {
-            while (isActive) {
-                delay(UPDATE_INTERVAL_MS)
-                adjustStates()
-            }
-        }
-    }
-
-    /**
-     * 상태 조정 - 오래된 상태 리셋
-     */
-    private suspend fun adjustStates() {
-        val currentTime = System.currentTimeMillis()
-
-        coordinatorStates.forEach { (org, stateRef) ->
-            val lastUpdate = lastUpdateTimes[org]?.get() ?: 0
-            val timeSinceLastUpdate = currentTime - lastUpdate
-
-            // 10초 이상 업데이트가 없으면 점진적 회복
-            if (timeSinceLastUpdate > 10_000) {
-                updateStateWithRetry(org, 10) { current ->
-                    val recoveryRate = min(1.2, 1.0 + (timeSinceLastUpdate / 60_000.0))
-                    val newLimit = min(properties.maxLimit, (current.limit * recoveryRate).toInt())
-
-                    current.copy(
-                        limit = newLimit,
-                        consecutiveSuccesses = 0,
-                        consecutiveFailures = 0,
-                        version = System.nanoTime()
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * 통계 정보 수집
-     */
-    fun getStatistics(): Map<String, Any> {
-        val stats = coordinatorStates.map { (org, stateRef) ->
-            val state = stateRef.get()
-            org to mapOf(
-                "limit" to state.limit,
-                "phase" to state.phase.name,
-                "ewmaLatency" to state.ewmaLatency,
-                "consecutiveSuccesses" to state.consecutiveSuccesses,
-                "consecutiveFailures" to state.consecutiveFailures
-            )
-        }.toMap()
-
-        return mapOf(
-            "organizations" to stats,
-            "totalOrgs" to coordinatorStates.size
+        logger.info(
+            "[AIMD-p99] Initialized {} orgs (reservoir={}, window={}ms, targetP99={}ms, addStep={}, decFactor={}, minSamples={})",
+            configs.size, reservoirSize, latencyWindowMs, targetP99Ms, addStep, decreaseFactor, minSamplesForP99
         )
     }
 
-    /**
-     * 종료 처리
-     */
+    // ---- 샘플 기록 (성공/실패 공통) ----
+    suspend fun onSuccess(org: String, latencyMs: Long, tsMs: Long = System.currentTimeMillis()) {
+        reservoirs.computeIfAbsent(org) { LatencyReservoir(reservoirSize) }.record(latencyMs, tsMs)
+    }
+
+    suspend fun onFailure(org: String, latencyMs: Long, tsMs: Long = System.currentTimeMillis()) {
+        reservoirs.computeIfAbsent(org) { LatencyReservoir(reservoirSize) }.record(latencyMs, tsMs)
+    }
+
+    // ---- 현재 Limit/State 조회 ----
+    fun getCurrentLimit(org: String): Int =
+        coordinatorStates[org]?.get()?.limit ?: maxLimit
+
+    fun getState(org: String): CoordinatorState? =
+        coordinatorStates[org]?.get()
+
+    // ---- 주기적 조정 시작 (윈도우 오버라이드 가능) ----
+    fun startPeriodicAdjustment(windowMs: Long = latencyWindowMs) {
+        scope.launch {
+            while (isActive) {
+                delay(UPDATE_INTERVAL_MS)
+                adjustAll(windowMs)
+            }
+        }
+    }
+
+    // 필요 시 수동 1회 조정
+    suspend fun adjustOnce(windowMs: Long = latencyWindowMs) {
+        adjustAll(windowMs)
+    }
+
+    private suspend fun adjustAll(windowMs: Long) {
+        val now = System.currentTimeMillis()
+        reservoirs.forEach { (org, resv) ->
+            val p99 = resv.p99Within(windowMs, now, minSamplesForP99) ?: return@forEach
+            val stateRef = coordinatorStates.computeIfAbsent(org) { AtomicReference(CoordinatorState(limit = maxLimit)) }
+
+            stateRef.updateAndGet { cur ->
+                val oldLimit = cur.limit
+                val newLimit =
+                    if (p99 <= targetP99Ms) {
+                        // Additive Increase
+                        min(maxLimit, oldLimit + addStep)
+                    } else {
+                        // Multiplicative Decrease
+                        max(minLimit, (oldLimit * decreaseFactor).toInt().coerceAtLeast(minLimit))
+                    }
+
+                if (logger.isDebugEnabled) {
+                    logger.debug(
+                        "[AIMD-p99] org={}, p99={}ms (window={}ms), target={}ms, limit: {} -> {}",
+                        org, p99, windowMs, targetP99Ms, oldLimit, newLimit
+                    )
+                }
+
+                cur.copy(limit = newLimit, lastP99 = p99, version = System.nanoTime())
+            }
+
+            lastAdjustMs[org]?.set(now)
+        }
+    }
+
+    // ---- 통계 ----
+    fun getStatistics(): Map<String, Any> {
+        val orgs = coordinatorStates.mapValues { (_, ref) ->
+            val st = ref.get()
+            mapOf(
+                "limit" to st.limit,
+                "lastP99Ms" to st.lastP99
+            )
+        }
+        return mapOf("organizations" to orgs, "totalOrgs" to orgs.size)
+    }
+
+    // ---- 종료 ----
     fun shutdown() {
         scope.cancel()
-        logger.info("[Atomic AIMD] Coordinator shutdown completed")
+        logger.info("[AIMD-p99] Coordinator shutdown completed")
+    }
+
+    /**
+     * 고정 크기 ring buffer (lock-free writes, 안전한 게시 스탬프)
+     * - values[i], times[i]를 쓰고 나서 stamps[i]로 '게시 완료' 표시
+     * - 읽기는 stamps 기준으로 최근 cap개 중 windowMs 내의 샘플만 수집
+     */
+    private class LatencyReservoir(capacity: Int) {
+        private val cap = capacity
+        private val values = LongArray(cap)
+        private val times = LongArray(cap)
+        private val seq = AtomicLong(0) // 총 게시 시퀀스(증가만)
+        private val stamps = java.util.concurrent.atomic.AtomicLongArray(cap)
+        // stamps[i] == 0        : 미게시
+        // stamps[i] == k(>=1)   : 시퀀스 k로 게시 완료
+
+        fun record(latencyMs: Long, tsMs: Long = System.currentTimeMillis()) {
+            val slotSequence = seq.getAndIncrement()           // 슬롯 시퀀스(게시 번호)
+            val slotIndex = (slotSequence % cap).toInt()
+            values[slotIndex] = latencyMs                   // 1) 값
+            times[slotIndex] = tsMs                         // 2) 타임스탬프
+            stamps.set(slotIndex, slotSequence + 1)                    // 3) 게시 완료 표시 (퍼블리시)
+        }
+
+        fun size(): Int = min(seq.get().toInt(), cap)
+
+        fun p99Within(windowMs: Long, nowMs: Long = System.currentTimeMillis(), minSamples: Int = 0): Long? {
+            val published = seq.get()
+            if (published == 0L) return null
+            val lowerBound = (published - cap).coerceAtLeast(0) // 최근 cap개만 고려
+
+            // window 내 샘플만 임시 배열에 모아 정렬
+            val snap = LongArray(cap)
+            var n = 0
+            for (i in 0 until cap) {
+                val s = stamps.get(i)
+                if (s > lowerBound) {
+                    val ts = times[i]
+                    if (nowMs - ts <= windowMs) {
+                        snap[n++] = values[i]
+                    }
+                }
+            }
+            if (n < max(1, minSamples)) return null
+            java.util.Arrays.sort(snap, 0, n)
+            val idx = floor((n - 1) * 0.99).toInt().coerceIn(0, n - 1)
+            return snap[idx]
+        }
     }
 }
