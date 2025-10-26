@@ -1,7 +1,11 @@
 package com.yosep.server.common.component.ratelimit.local.atomic
 
 import com.yosep.server.common.component.ratelimit.local.LocalSlidingWindowRateLimiter
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.HdrHistogram.Histogram
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -20,13 +24,13 @@ import kotlin.system.measureNanoTime
 class RealWorldBenchmarkTest {
 
     private lateinit var mutexLimiter: LocalSlidingWindowRateLimiter
-    private lateinit var atomicLimiter: LocalSlidingWindowRateLimiterAtomic
+    private lateinit var atomicLimiter: LocalSlidingWindowCounterRateLimiterAtomic
     private lateinit var optimizedAtomic: OptimizedLocalSlidingWindowRateLimiterAtomic
 
     @BeforeEach
     fun setup() {
         mutexLimiter = LocalSlidingWindowRateLimiter()
-        atomicLimiter = LocalSlidingWindowRateLimiterAtomic()
+        atomicLimiter = LocalSlidingWindowCounterRateLimiterAtomic()
         optimizedAtomic = OptimizedLocalSlidingWindowRateLimiterAtomic()
 
         // Warm up for JIT

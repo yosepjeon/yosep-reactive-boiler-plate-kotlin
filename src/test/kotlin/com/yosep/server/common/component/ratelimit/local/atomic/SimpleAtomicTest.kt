@@ -2,7 +2,10 @@ package com.yosep.server.common.component.ratelimit.local.atomic
 
 import com.yosep.server.common.component.ratelimit.local.LocalRateLimitProperties
 import com.yosep.server.common.component.ratelimit.local.LocalSlidingWindowRateLimiter
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -12,7 +15,7 @@ import kotlin.system.measureTimeMillis
 class SimpleAtomicTest {
 
     private lateinit var mutexRateLimiter: LocalSlidingWindowRateLimiter
-    private lateinit var atomicRateLimiter: LocalSlidingWindowRateLimiterAtomic
+    private lateinit var atomicRateLimiter: LocalSlidingWindowCounterRateLimiterAtomic
     private lateinit var properties: LocalRateLimitProperties
 
     @BeforeEach
@@ -26,7 +29,7 @@ class SimpleAtomicTest {
         }
 
         mutexRateLimiter = LocalSlidingWindowRateLimiter()
-        atomicRateLimiter = LocalSlidingWindowRateLimiterAtomic()
+        atomicRateLimiter = LocalSlidingWindowCounterRateLimiterAtomic()
     }
 
     @Test

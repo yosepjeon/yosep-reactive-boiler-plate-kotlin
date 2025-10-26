@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLongArray
  * - 시간 기반 자동 버킷 순환
  */
 @Component
-class LocalSlidingWindowRateLimiterAtomic {
+class LocalSlidingWindowCounterRateLimiterAtomic {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
@@ -39,9 +39,11 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 슬라이딩 윈도우 상태
      * - buckets: 각 시간 버킷의 카운터 (순환 버퍼)
      * - lastUpdateTime: 마지막 업데이트 시간 (버킷 순환용)
+     * @author : 전요셉
      */
     private class SlidingWindow {
         val buckets = AtomicLongArray(NUM_BUCKETS)
@@ -50,13 +52,18 @@ class LocalSlidingWindowRateLimiterAtomic {
 
         /**
          * 현재 시간의 버킷 인덱스 계산
+         * @param timeMs 기준 시간 (밀리초)
+         * @author: 전요셉
          */
         private fun getBucketIndex(timeMs: Long): Int {
             return ((timeMs / BUCKET_SIZE_MS) % NUM_BUCKETS).toInt()
         }
 
         /**
+         * @since: 2025-09-12
          * 오래된 버킷 정리 (순환)
+         * @param currentTime 현재 시간 (밀리초)
+         * * @author: 전요셉
          */
         fun cleanOldBuckets(currentTime: Long) {
             val elapsed = currentTime - lastUpdateTime
@@ -74,7 +81,9 @@ class LocalSlidingWindowRateLimiterAtomic {
         }
 
         /**
+         * @since: 2025-09-12
          * 요청 기록 (원자적 증가)
+         * @author: 전요셉
          */
         fun recordRequest(currentTime: Long): Long {
             cleanOldBuckets(currentTime)
@@ -83,7 +92,11 @@ class LocalSlidingWindowRateLimiterAtomic {
         }
 
         /**
+         * @since: 2025-09-12
          * 윈도우 내 총 요청 수 계산
+         * @param currentTime 현재 시간 (밀리초)
+         * @param windowMs 윈도우 크기 (밀리초)
+         * @author: 전요셉
          */
         fun getCount(currentTime: Long, windowMs: Long): Long {
             cleanOldBuckets(currentTime)
@@ -106,8 +119,12 @@ class LocalSlidingWindowRateLimiterAtomic {
         }
 
         /**
+         * @since: 2025-09-12
          * 부분 윈도우 계산 (더 정확한 슬라이딩)
          * 현재 버킷과 윈도우 시작 버킷의 부분 카운트 포함
+         * @param currentTime 현재 시간 (밀리초)
+         * @param windowMs 윈도우 크기 (밀리초)
+         * @author: 전요셉
          */
         fun getPreciseCount(currentTime: Long, windowMs: Long): Double {
             cleanOldBuckets(currentTime)
@@ -146,7 +163,9 @@ class LocalSlidingWindowRateLimiterAtomic {
         }
 
         /**
-         * 리셋
+         * @since: 2025-09-12
+         * 버킷 리셋
+         * @author: 전요셉
          */
         fun reset() {
             for (i in 0 until NUM_BUCKETS) {
@@ -160,11 +179,13 @@ class LocalSlidingWindowRateLimiterAtomic {
     private val windows = ConcurrentHashMap<String, SlidingWindow>()
 
     /**
+     * @since: 2025-09-12
      * Rate limit 체크 및 획득
      * @param key 제한 키
      * @param maxCount 윈도우 내 최대 허용 요청 수
      * @param windowMs 윈도우 크기 (밀리초)
      * @param usePrecise 정확한 부분 윈도우 계산 사용 여부
+     * @author: 전요셉
      */
     suspend fun tryAcquire(
         key: String,
@@ -210,7 +231,11 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 현재 사용량 조회
+     * @param key 제한 키
+     * @param windowMs 윈도우 크기 (밀리초)
+     * @author: 전요셉
      */
     fun getCurrentUsage(key: String, windowMs: Long = 1000L): Long {
         val window = windows[key] ?: return 0
@@ -218,7 +243,11 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 정확한 사용량 조회 (부분 버킷 포함)
+     * @param key 제한 키
+     * @param windowMs 윈도우 크기 (밀리초)
+     * @author: 전요셉
      */
     fun getPreciseUsage(key: String, windowMs: Long = 1000L): Double {
         val window = windows[key] ?: return 0.0
@@ -226,7 +255,9 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 특정 키 리셋
+     * @author: 전요셉
      */
     fun reset(key: String) {
         windows[key]?.reset()
@@ -234,7 +265,9 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 모든 상태 클리어
+     * @author: 전요셉
      */
     fun clearAll() {
         val keyCount = windows.size
@@ -243,7 +276,9 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 통계 정보 조회
+     * @author: 전요셉
      */
     fun getStats(): Map<String, Any> {
         val currentTime = System.currentTimeMillis()
@@ -266,7 +301,11 @@ class LocalSlidingWindowRateLimiterAtomic {
     }
 
     /**
+     * @since: 2025-09-12
      * 상세 통계 (디버깅용)
+     * @param key 제한 키
+     * @param windowMs 윈도우 크기 (밀리초)
+     * @author: 전요셉
      */
     fun getDetailedStats(key: String, windowMs: Long = 1000L): Map<String, Any>? {
         val window = windows[key] ?: return null

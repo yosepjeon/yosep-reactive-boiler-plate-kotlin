@@ -1,6 +1,5 @@
 package com.yosep.server.common.component.ratelimit.local.atomic
 
-import com.yosep.server.common.component.ratelimit.local.LocalRateLimitProperties
 import com.yosep.server.common.component.ratelimit.local.LocalSlidingWindowRateLimiter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -18,12 +17,12 @@ import kotlin.system.measureTimeMillis
 class ProperAtomicBenchmarkTest {
 
     private lateinit var mutexRateLimiter: LocalSlidingWindowRateLimiter
-    private lateinit var atomicRateLimiter: LocalSlidingWindowRateLimiterAtomic
+    private lateinit var atomicRateLimiter: LocalSlidingWindowCounterRateLimiterAtomic
 
     @BeforeEach
     fun setup() {
         mutexRateLimiter = LocalSlidingWindowRateLimiter()
-        atomicRateLimiter = LocalSlidingWindowRateLimiterAtomic()
+        atomicRateLimiter = LocalSlidingWindowCounterRateLimiterAtomic()
     }
 
     @Test

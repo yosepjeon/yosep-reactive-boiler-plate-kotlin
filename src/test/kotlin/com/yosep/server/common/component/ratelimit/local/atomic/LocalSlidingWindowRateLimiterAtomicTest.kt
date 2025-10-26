@@ -14,11 +14,11 @@ import kotlin.system.measureTimeMillis
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
 class LocalSlidingWindowRateLimiterAtomicTest {
 
-    private lateinit var rateLimiter: LocalSlidingWindowRateLimiterAtomic
+    private lateinit var rateLimiter: LocalSlidingWindowCounterRateLimiterAtomic
 
     @BeforeEach
     fun setUp() {
-        rateLimiter = LocalSlidingWindowRateLimiterAtomic()
+        rateLimiter = LocalSlidingWindowCounterRateLimiterAtomic()
     }
 
     @Test

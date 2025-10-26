@@ -18,7 +18,7 @@ import kotlin.system.measureTimeMillis
 class AtomicPerfTest {
 
     private lateinit var mutexRateLimiter: LocalSlidingWindowRateLimiter
-    private lateinit var atomicRateLimiter: LocalSlidingWindowRateLimiterAtomic
+    private lateinit var atomicRateLimiter: LocalSlidingWindowCounterRateLimiterAtomic
     private lateinit var properties: LocalRateLimitProperties
 
     @BeforeEach
@@ -32,7 +32,7 @@ class AtomicPerfTest {
         }
 
         mutexRateLimiter = LocalSlidingWindowRateLimiter()
-        atomicRateLimiter = LocalSlidingWindowRateLimiterAtomic()
+        atomicRateLimiter = LocalSlidingWindowCounterRateLimiterAtomic()
     }
 
     @Test

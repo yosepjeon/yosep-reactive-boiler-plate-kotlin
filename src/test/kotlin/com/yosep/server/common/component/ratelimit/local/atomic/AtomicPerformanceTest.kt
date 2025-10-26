@@ -27,7 +27,7 @@ import kotlin.system.measureTimeMillis
 class AtomicPerformanceTest {
 
     private lateinit var mutexRateLimiter: LocalSlidingWindowRateLimiter
-    private lateinit var atomicRateLimiter: LocalSlidingWindowRateLimiterAtomic
+    private lateinit var atomicRateLimiter: LocalSlidingWindowCounterRateLimiterAtomic
     private lateinit var atomicCoordinator: LocalAimdRateCoordinatorAtomic
     private lateinit var properties: LocalRateLimitProperties
 
@@ -42,7 +42,7 @@ class AtomicPerformanceTest {
         }
 
         mutexRateLimiter = LocalSlidingWindowRateLimiter()
-        atomicRateLimiter = LocalSlidingWindowRateLimiterAtomic()
+        atomicRateLimiter = LocalSlidingWindowCounterRateLimiterAtomic()
 
         val mockK8sClient = mockk<KubernetesClient>(relaxed = true)
         atomicCoordinator = LocalAimdRateCoordinatorAtomic(
@@ -241,7 +241,7 @@ class AtomicPerformanceTest {
         val successCounter = AtomicInteger(0)
 
         // Create a custom atomic rate limiter that counts retries
-        val instrumentedAtomic = object : LocalSlidingWindowRateLimiterAtomic() {
+        val instrumentedAtomic = object : LocalSlidingWindowCounterRateLimiterAtomic() {
             override suspend fun tryAcquire(key: String, maxCount: Int, windowMs: Long, usePrecise: Boolean): Boolean {
                 var attempts = 0
                 var result = false
